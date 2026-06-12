@@ -241,10 +241,6 @@
           <option value="daily">Hằng ngày</option>
           <option value="once">Một lần</option>
         </select>
-        <span class="date-pick hidden" id="newTaskDateWrap">
-          <button type="button" id="newTaskDateBtn"></button>
-          <input type="date" id="newTaskDate" tabindex="-1">
-        </span>
         <button class="btn" id="addTaskBtn">Thêm</button>
       </div>
 
@@ -733,23 +729,23 @@ function makeDatePicker(value, title, onPick) {
   input.value = value;
   input.tabIndex = -1;
   btn.onclick = () => openDatePicker(input);
-  input.onchange = () => { if (input.value) onPick(input.value); };
+  input.onchange = () => {
+    if (!input.value) return;
+    btn.textContent = formatDMY(input.value);
+    onPick(input.value);
+  };
   wrap.append(btn, input);
   return wrap;
 }
 
+/* Ô chọn ngày cho "việc một lần", chỉ hiện khi chọn kiểu Một lần */
 const repeatSelect = document.getElementById('newTaskRepeat');
-const dateInput = document.getElementById('newTaskDate');
-const dateWrap = document.getElementById('newTaskDateWrap');
-const dateBtn = document.getElementById('newTaskDateBtn');
+let newOnceDate = todayKey();
+const newOnceDatePick = makeDatePicker(newOnceDate, 'Ngày diễn ra việc một lần', v => { newOnceDate = v; });
+newOnceDatePick.classList.add('hidden');
+repeatSelect.after(newOnceDatePick);
 repeatSelect.onchange = () => {
-  dateWrap.classList.toggle('hidden', repeatSelect.value !== 'once');
-  if (repeatSelect.value === 'once' && !dateInput.value) dateInput.value = todayKey();
-  if (dateInput.value) dateBtn.textContent = formatDMY(dateInput.value);
-};
-dateBtn.onclick = () => openDatePicker(dateInput);
-dateInput.onchange = () => {
-  if (dateInput.value) dateBtn.textContent = formatDMY(dateInput.value);
+  newOnceDatePick.classList.toggle('hidden', repeatSelect.value !== 'once');
 };
 
 function addTask() {
@@ -764,7 +760,7 @@ function addTask() {
     createdAt: todayKey(),
     archivedAt: null,
   };
-  if (repeat === 'once') task.date = dateInput.value || todayKey();
+  if (repeat === 'once') task.date = newOnceDate;
   state.tasks.push(task);
   save();
   input.value = '';
@@ -789,7 +785,7 @@ document.getElementById('exportBtn').onclick = () => {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `habitchecker-${todayKey().split('-').reverse().join('-')}.json`;
+  a.download = `habitchecker-${todayKey()}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
 };
