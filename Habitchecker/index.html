@@ -144,7 +144,7 @@
     font-size: 15px; outline: none;
   }
   .add-row input[type="text"]:focus { border-color: var(--primary); }
-  .add-row select, .add-row input[type="date"] {
+  .add-row select, .add-row .date-pick button {
     padding: 0 10px; border: 1px solid var(--border); border-radius: 10px;
     font-size: 14px; background: #fff; color: var(--text); outline: none; cursor: pointer;
     height: 44px;
@@ -171,6 +171,10 @@
     font-size: 12.5px; color: var(--muted); background: #fff; outline: none;
   }
   .date-mini:hover, .date-mini:focus { color: var(--text); border-color: var(--primary); }
+  button.date-mini { cursor: pointer; font-family: inherit; }
+  /* Ô chọn ngày tự vẽ: nút hiện dd/mm/yyyy + input date ẩn bên dưới để mở lịch */
+  .date-pick { position: relative; display: inline-flex; }
+  .date-pick > input { position: absolute; inset: 0; width: 100%; opacity: 0; pointer-events: none; border: 0; padding: 0; }
   .date-label { font-size: 11.5px; color: var(--muted); }
   .threshold-row { font-size: 13.5px; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .threshold-row input {
@@ -237,7 +241,10 @@
           <option value="daily">Hằng ngày</option>
           <option value="once">Một lần</option>
         </select>
-        <input type="date" id="newTaskDate" class="hidden">
+        <span class="date-pick hidden" id="newTaskDateWrap">
+          <button type="button" id="newTaskDateBtn"></button>
+          <input type="date" id="newTaskDate" tabindex="-1">
+        </span>
         <button class="btn" id="addTaskBtn">Thêm</button>
       </div>
 
@@ -326,6 +333,10 @@ function formatVN(key) {
 function formatShort(key) {
   const dt = keyToDate(key);
   return `${dt.getDate()}/${dt.getMonth() + 1}`;
+}
+function formatDMY(key) {
+  const [y, m, d] = key.split('-');
+  return `${d}/${m}/${y}`;
 }
 
 /* ================= Logic công việc ================= */
@@ -700,11 +711,45 @@ function renderStats(body) {
 }
 
 /* ================= Tab Công việc ================= */
+/* Input date của trình duyệt hiện theo ngôn ngữ trình duyệt (có thể là tháng/ngày),
+   nên ta ẩn nó đi, tự hiện chữ dd/mm/yyyy trên nút, bấm nút thì mở lịch của input */
+function openDatePicker(input) {
+  if (input.showPicker) {
+    try { input.showPicker(); return; } catch (e) { /* trình duyệt cũ */ }
+  }
+  input.focus();
+  input.click();
+}
+function makeDatePicker(value, title, onPick) {
+  const wrap = document.createElement('span');
+  wrap.className = 'date-pick';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'date-mini';
+  btn.textContent = formatDMY(value);
+  btn.title = title;
+  const input = document.createElement('input');
+  input.type = 'date';
+  input.value = value;
+  input.tabIndex = -1;
+  btn.onclick = () => openDatePicker(input);
+  input.onchange = () => { if (input.value) onPick(input.value); };
+  wrap.append(btn, input);
+  return wrap;
+}
+
 const repeatSelect = document.getElementById('newTaskRepeat');
 const dateInput = document.getElementById('newTaskDate');
+const dateWrap = document.getElementById('newTaskDateWrap');
+const dateBtn = document.getElementById('newTaskDateBtn');
 repeatSelect.onchange = () => {
-  dateInput.classList.toggle('hidden', repeatSelect.value !== 'once');
+  dateWrap.classList.toggle('hidden', repeatSelect.value !== 'once');
   if (repeatSelect.value === 'once' && !dateInput.value) dateInput.value = todayKey();
+  if (dateInput.value) dateBtn.textContent = formatDMY(dateInput.value);
+};
+dateBtn.onclick = () => openDatePicker(dateInput);
+dateInput.onchange = () => {
+  if (dateInput.value) dateBtn.textContent = formatDMY(dateInput.value);
 };
 
 function addTask() {
@@ -744,7 +789,7 @@ document.getElementById('exportBtn').onclick = () => {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `habitchecker-${todayKey()}.json`;
+  a.download = `habitchecker-${todayKey().split('-').reverse().join('-')}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
 };
@@ -880,14 +925,9 @@ function renderManage() {
     const dateLabel = document.createElement('span');
     dateLabel.className = 'date-label';
     dateLabel.textContent = 'bắt đầu:';
-    const startInput = document.createElement('input');
-    startInput.type = 'date';
-    startInput.className = 'date-mini';
-    startInput.value = t.createdAt;
-    startInput.title = 'Đổi ngày bắt đầu — lùi lại để tick được cho những ngày sớm hơn';
-    startInput.onchange = () => {
-      if (startInput.value) { t.createdAt = startInput.value; save(); render(); }
-    };
+    const startPick = makeDatePicker(t.createdAt,
+      'Đổi ngày bắt đầu — lùi lại để tick được cho những ngày sớm hơn',
+      v => { t.createdAt = v; save(); render(); });
 
     const archiveBtn = document.createElement('button');
     archiveBtn.className = 'btn ghost small';
@@ -899,7 +939,7 @@ function renderManage() {
       }
     };
 
-    li.append(handle, name, dateLabel, startInput, makeRenameBtn(t), archiveBtn, makeDeleteBtn(t));
+    li.append(handle, name, dateLabel, startPick, makeRenameBtn(t), archiveBtn, makeDeleteBtn(t));
     activeList.appendChild(li);
   }
 
@@ -923,22 +963,16 @@ function renderManage() {
       status.textContent = 'đã qua';
     }
 
-    const dayInput = document.createElement('input');
-    dayInput.type = 'date';
-    dayInput.className = 'date-mini';
-    dayInput.value = dk;
-    dayInput.title = 'Đổi ngày của việc này';
-    dayInput.onchange = () => {
-      if (!dayInput.value) return;
-      // Chuyển cả dấu tick (nếu có) sang ngày mới
+    // Chuyển cả dấu tick (nếu có) sang ngày mới
+    const dayPick = makeDatePicker(dk, 'Đổi ngày của việc này', v => {
       const wasDone = isDone(dk, t.id);
       if (wasDone) toggleTask(dk, t.id);
-      t.date = dayInput.value;
+      t.date = v;
       if (wasDone) toggleTask(t.date, t.id);
       save(); render();
-    };
+    });
 
-    li.append(name, status, dayInput, makeRenameBtn(t), makeDeleteBtn(t));
+    li.append(name, status, dayPick, makeRenameBtn(t), makeDeleteBtn(t));
     onceList.appendChild(li);
   }
 
