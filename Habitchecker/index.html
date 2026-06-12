@@ -261,10 +261,18 @@
         việc <span class="date-label">(0 = phải đủ tất cả)</span>
       </div>
 
+      <div class="section-title" style="margin-top:16px">Dữ liệu 💾</div>
+      <div class="add-row" style="margin-bottom:0">
+        <button class="btn ghost" id="exportBtn">⬇ Xuất file sao lưu</button>
+        <button class="btn ghost" id="importBtn">⬆ Nhập từ file</button>
+        <input type="file" id="importFile" accept=".json,application/json" class="hidden">
+      </div>
+
       <p class="hint">💡 Kéo tay nắm <b>⠿</b> để đổi thứ tự — thứ tự này áp dụng cho cả tab Hôm nay và Lịch sử.<br>
       💡 <b>Lưu trữ</b> sẽ ẩn việc khỏi danh sách hằng ngày nhưng vẫn giữ nguyên lịch sử các ngày đã làm trước đó. <b>Xóa</b> mới mất hẳn cả lịch sử.<br>
       💡 Việc chỉ được tính từ <b>ngày bắt đầu</b> — muốn tick cho những ngày sớm hơn, hãy lùi ngày bắt đầu lại bằng ô ngày bên cạnh tên việc.<br>
-      💡 <b>Việc một lần</b> chỉ xuất hiện đúng ngày bạn chọn, không tính vào chuỗi/thống kê dài hạn.</p>
+      💡 <b>Việc một lần</b> chỉ xuất hiện đúng ngày bạn chọn, không tính vào chuỗi/thống kê dài hạn.<br>
+      💡 <b>Xuất file sao lưu</b> để chuyển dữ liệu sang máy/điện thoại khác: xuất ở máy này, gửi file qua (Zalo, email...), rồi <b>Nhập từ file</b> ở máy kia.</p>
     </div>
   </section>
 </div>
@@ -729,6 +737,42 @@ minDoneInput.onchange = () => {
   state.minDone = Number.isFinite(v) && v >= 0 ? v : 0;
   save();
   render();
+};
+
+/* ===== Xuất / nhập dữ liệu (sao lưu & chuyển máy) ===== */
+document.getElementById('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `habitchecker-${todayKey()}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+const importFile = document.getElementById('importFile');
+document.getElementById('importBtn').onclick = () => { importFile.click(); };
+importFile.onchange = () => {
+  const file = importFile.files[0];
+  importFile.value = ''; // cho phép chọn lại cùng một file lần sau
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try { data = JSON.parse(reader.result); }
+    catch (e) { alert('File không đúng định dạng JSON.'); return; }
+    if (!data || !Array.isArray(data.tasks) || typeof data.records !== 'object' || data.records === null) {
+      alert('File này không phải file sao lưu của Habit Checker.');
+      return;
+    }
+    if (!confirm(`Nhập ${data.tasks.length} việc từ file?\nToàn bộ dữ liệu hiện tại trên máy này sẽ bị THAY THẾ.`)) return;
+    state.tasks = data.tasks;
+    state.records = data.records;
+    state.minDone = typeof data.minDone === 'number' ? data.minDone : 3;
+    save();
+    render();
+    alert('Đã nhập dữ liệu thành công ✓');
+  };
+  reader.readAsText(file);
 };
 
 /* Kéo thả sắp xếp thứ tự việc hằng ngày */
