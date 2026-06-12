@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Habit Checker — Việc cần làm mỗi ngày</title>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --text: #1f2430;
+    --muted: #7a8194;
+    --primary: #4f6ef7;
+    --primary-soft: #e8edff;
+    --green: #2eb872;
+    --green-soft: #e3f7ec;
+    --amber: #f0a330;
+    --red: #e25555;
+    --border: #e3e6ee;
+    --radius: 14px;
+    --shadow: 0 1px 3px rgba(20,24,40,.07), 0 8px 24px rgba(20,24,40,.05);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .container { max-width: 760px; margin: 0 auto; padding: 24px 16px 60px; }
+
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 18px; }
+  header h1 { font-size: 22px; }
+  header .date { color: var(--muted); font-size: 14px; }
+
+  .tabs { display: flex; gap: 6px; background: #e9ebf1; padding: 4px; border-radius: 12px; margin-bottom: 18px; }
+  .tabs button {
+    flex: 1; border: none; background: transparent; padding: 9px 0;
+    border-radius: 9px; font-size: 14px; font-weight: 600; color: var(--muted);
+    cursor: pointer; transition: all .15s;
+  }
+  .tabs button.active { background: var(--card); color: var(--text); box-shadow: var(--shadow); }
+
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; margin-bottom: 14px; }
+
+  /* ===== Hôm nay ===== */
+  .progress-row { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+  .progress-bar { flex: 1; height: 10px; background: #edf0f6; border-radius: 99px; overflow: hidden; }
+  .progress-bar > div { height: 100%; background: var(--green); border-radius: 99px; transition: width .25s; }
+  .progress-label { font-size: 14px; font-weight: 700; min-width: 42px; text-align: right; }
+  .streak { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+  .streak b { color: var(--amber); }
+
+  ul.task-list { list-style: none; }
+  ul.task-list li {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 4px; border-bottom: 1px solid var(--border);
+  }
+  ul.task-list li:last-child { border-bottom: none; }
+  .checkbox {
+    width: 24px; height: 24px; border-radius: 8px; border: 2px solid #c7cddd;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; transition: all .15s; background: #fff;
+    font-size: 14px; color: transparent;
+  }
+  .checkbox.checked { background: var(--green); border-color: var(--green); color: #fff; }
+  .task-name { flex: 1; font-size: 15px; cursor: pointer; user-select: none; }
+  li.done .task-name { color: var(--muted); text-decoration: line-through; }
+  .once-tag {
+    font-size: 10.5px; font-weight: 700; color: var(--amber);
+    background: #fdf3e3; padding: 2px 8px; border-radius: 99px; flex-shrink: 0;
+  }
+
+  .empty { text-align: center; color: var(--muted); padding: 30px 10px; font-size: 14px; line-height: 1.6; }
+
+  /* ===== Lịch sử: chung ===== */
+  .subtabs { display: flex; gap: 4px; background: #eef0f5; padding: 3px; border-radius: 10px; margin-bottom: 14px; }
+  .subtabs button {
+    flex: 1; border: none; background: transparent; padding: 7px 0;
+    border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer;
+  }
+  .subtabs button.active { background: var(--card); color: var(--primary); box-shadow: 0 1px 2px rgba(20,24,40,.1); }
+
+  .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .cal-header h2 { font-size: 16px; }
+  .cal-nav { display: flex; gap: 6px; }
+  .cal-nav button {
+    width: 32px; height: 32px; border: 1px solid var(--border); background: #fff;
+    border-radius: 8px; cursor: pointer; font-size: 15px; color: var(--text);
+  }
+  .cal-nav button:hover { background: var(--primary-soft); }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 12px; line-height: 1.5; }
+
+  /* ===== Bảng lưới việc × ngày ===== */
+  .matrix-wrap { overflow-x: auto; padding-bottom: 4px; }
+  table.matrix { border-collapse: collapse; font-size: 12px; min-width: 100%; }
+  .matrix th, .matrix td { padding: 3px; text-align: center; white-space: nowrap; }
+  .matrix thead th { font-weight: 600; color: var(--muted); font-size: 11px; padding-bottom: 6px; }
+  .matrix thead th .dw { display: block; font-size: 9px; font-weight: 500; color: #b0b6c6; }
+  .matrix th.task-col, .matrix td.task-col {
+    text-align: left; position: sticky; left: 0; background: var(--card);
+    font-size: 13px; font-weight: 500; max-width: 150px; overflow: hidden;
+    text-overflow: ellipsis; padding-right: 10px; z-index: 1;
+  }
+  .matrix td.task-col .once-tag { margin-left: 5px; }
+  .matrix thead th.today-col, .matrix td.today-col { background: var(--primary-soft); }
+  .matrix thead th.today-col { color: var(--primary); border-radius: 6px 6px 0 0; }
+  .m-cell {
+    width: 24px; height: 24px; min-width: 24px; border-radius: 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; cursor: pointer; user-select: none;
+  }
+  .m-cell.on { background: var(--green); color: #fff; }
+  .m-cell.off { background: #eef0f5; color: #c2c8d8; }
+  .m-cell.off:hover { background: #dfe3ec; }
+  .m-cell.na { background: transparent; cursor: default; }
+  .m-cell.future { background: #f7f8fb; cursor: default; color: transparent; }
+  .matrix td.pct { font-weight: 700; font-size: 12px; padding-left: 8px; }
+  .matrix tfoot td { font-size: 10.5px; color: var(--muted); padding-top: 6px; font-weight: 600; }
+  .matrix tfoot td.full { color: var(--green); }
+
+  /* ===== Thống kê từng việc ===== */
+  .stat-item { padding: 14px 4px; border-bottom: 1px solid var(--border); }
+  .stat-item:last-child { border-bottom: none; }
+  .stat-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+  .stat-top .sn { font-size: 15px; font-weight: 600; }
+  .stat-top .sp { font-size: 14px; font-weight: 700; color: var(--green); }
+  .stat-bar { height: 8px; background: #edf0f6; border-radius: 99px; overflow: hidden; margin-bottom: 10px; }
+  .stat-bar > div { height: 100%; background: var(--green); border-radius: 99px; }
+  .strip { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 8px; }
+  .strip i {
+    width: 14px; aspect-ratio: 1; border-radius: 4px;
+    background: #eef0f5; display: block; flex: none;
+  }
+  .strip i.on { background: var(--green); }
+  .strip i.na { background: transparent; border: 1px dashed var(--border); }
+  .stat-meta { font-size: 12.5px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; }
+  .stat-meta b { color: var(--text); }
+
+  /* ===== Quản lý công việc ===== */
+  .add-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .add-row input[type="text"] {
+    flex: 1; min-width: 160px; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px;
+    font-size: 15px; outline: none;
+  }
+  .add-row input[type="text"]:focus { border-color: var(--primary); }
+  .add-row select, .add-row input[type="date"] {
+    padding: 0 10px; border: 1px solid var(--border); border-radius: 10px;
+    font-size: 14px; background: #fff; color: var(--text); outline: none; cursor: pointer;
+    height: 44px;
+  }
+  .btn {
+    border: none; background: var(--primary); color: #fff; padding: 0 18px;
+    border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; height: 44px;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn.ghost:hover { color: var(--text); background: #f0f2f7; }
+  .btn.small { padding: 6px 12px; font-size: 13px; height: auto; }
+  .btn.danger { color: var(--red); border-color: #f3cdcd; }
+  .btn.danger:hover { background: #fdf0f0; color: var(--red); }
+  .manage-list li { display: flex; align-items: center; gap: 8px; padding: 10px 4px; border-bottom: 1px solid var(--border); list-style: none; flex-wrap: wrap; }
+  .manage-list li:last-child { border-bottom: none; }
+  .drag-handle { cursor: grab; color: #c5cbda; font-size: 15px; padding: 2px 4px; user-select: none; flex-shrink: 0; }
+  .drag-handle:hover { color: var(--muted); }
+  .manage-list li.dragging { opacity: .45; background: var(--primary-soft); border-radius: 8px; }
+  .manage-list .name { flex: 1; font-size: 15px; min-width: 120px; }
+  .manage-list .archived-tag { font-size: 11px; color: var(--muted); background: #eef0f5; padding: 2px 8px; border-radius: 99px; }
+  .date-mini {
+    border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px;
+    font-size: 12.5px; color: var(--muted); background: #fff; outline: none;
+  }
+  .date-mini:hover, .date-mini:focus { color: var(--text); border-color: var(--primary); }
+  .date-label { font-size: 11.5px; color: var(--muted); }
+  .threshold-row { font-size: 13.5px; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .threshold-row input {
+    width: 56px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; font-weight: 700; text-align: center; outline: none;
+  }
+  .threshold-row input:focus { border-color: var(--primary); }
+  .section-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin: 4px 0 8px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>✅ Habit Checker</h1>
+    <span class="date" id="todayLabel"></span>
+  </header>
+
+  <div class="tabs">
+    <button id="tab-today" class="active">Hôm nay</button>
+    <button id="tab-history">Lịch sử</button>
+    <button id="tab-manage">Công việc</button>
+  </div>
+
+  <!-- ===== TAB HÔM NAY ===== -->
+  <section id="view-today">
+    <div class="card">
+      <div class="progress-row">
+        <div class="progress-bar"><div id="progressFill" style="width:0%"></div></div>
+        <span class="progress-label" id="progressLabel">0/0</span>
+      </div>
+      <div class="streak" id="streakLabel"></div>
+      <ul class="task-list" id="todayList"></ul>
+    </div>
+  </section>
+
+  <!-- ===== TAB LỊCH SỬ ===== -->
+  <section id="view-history" class="hidden">
+    <div class="card">
+      <div class="subtabs">
+        <button data-mode="matrix">Bảng</button>
+        <button data-mode="stats">Thống kê</button>
+      </div>
+
+      <div class="cal-header" id="monthNav">
+        <h2 id="calTitle"></h2>
+        <div class="cal-nav">
+          <button id="calPrev">‹</button>
+          <button id="calNext">›</button>
+        </div>
+      </div>
+
+      <div id="historyBody"></div>
+      <p class="hint" id="historyHint"></p>
+    </div>
+  </section>
+
+  <!-- ===== TAB CÔNG VIỆC ===== -->
+  <section id="view-manage" class="hidden">
+    <div class="card">
+      <div class="add-row">
+        <input id="newTaskInput" type="text" placeholder="Tên việc mới, vd: Tập thể dục" maxlength="80">
+        <select id="newTaskRepeat">
+          <option value="daily">Hằng ngày</option>
+          <option value="once">Một lần</option>
+        </select>
+        <input type="date" id="newTaskDate" class="hidden">
+        <button class="btn" id="addTaskBtn">Thêm</button>
+      </div>
+
+      <div class="section-title">Hằng ngày</div>
+      <ul class="manage-list" id="activeList"></ul>
+
+      <div id="onceSection" class="hidden">
+        <div class="section-title" style="margin-top:16px">Việc một lần</div>
+        <ul class="manage-list" id="onceList"></ul>
+      </div>
+
+      <div id="archivedSection" class="hidden">
+        <div class="section-title" style="margin-top:16px">Đã lưu trữ</div>
+        <ul class="manage-list" id="archivedList"></ul>
+      </div>
+
+      <div class="section-title" style="margin-top:16px">Cài đặt chuỗi 🔥</div>
+      <div class="threshold-row">
+        Một ngày được tính hoàn thành khi làm ít nhất
+        <input type="number" id="minDoneInput" min="0" max="99">
+        việc <span class="date-label">(0 = phải đủ tất cả)</span>
+      </div>
+
+      <p class="hint">💡 Kéo tay nắm <b>⠿</b> để đổi thứ tự — thứ tự này áp dụng cho cả tab Hôm nay và Lịch sử.<br>
+      💡 <b>Lưu trữ</b> sẽ ẩn việc khỏi danh sách hằng ngày nhưng vẫn giữ nguyên lịch sử các ngày đã làm trước đó. <b>Xóa</b> mới mất hẳn cả lịch sử.<br>
+      💡 Việc chỉ được tính từ <b>ngày bắt đầu</b> — muốn tick cho những ngày sớm hơn, hãy lùi ngày bắt đầu lại bằng ô ngày bên cạnh tên việc.<br>
+      💡 <b>Việc một lần</b> chỉ xuất hiện đúng ngày bạn chọn, không tính vào chuỗi/thống kê dài hạn.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+'use strict';
+
+/* ================= Dữ liệu =================
+   tasks: [{
+     id, name,
+     repeat: 'daily' | 'once'   (thiếu thì hiểu là 'daily' — dữ liệu cũ)
+     createdAt: 'YYYY-MM-DD'    (daily: ngày bắt đầu, chỉnh được)
+     date: 'YYYY-MM-DD'         (chỉ với 'once': ngày diễn ra)
+     archivedAt: 'YYYY-MM-DD' | null
+   }]
+   records: { 'YYYY-MM-DD': { taskId: true, ... } }
+*/
+const STORE_KEY = 'habitchecker-v1';
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* dữ liệu hỏng thì bắt đầu mới */ }
+  return { tasks: [], records: {} };
+}
+function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+
+const state = load();
+// Ngưỡng hoàn thành ngày: làm ít nhất n việc là ngày đó tính hoàn thành (0 = phải đủ tất cả)
+if (typeof state.minDone !== 'number') state.minDone = 3;
+
+/* ================= Tiện ích ngày tháng ================= */
+function dateKey(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function todayKey() { return dateKey(new Date()); }
+const DOWS_FULL = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+const DOWS_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+function keyToDate(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function formatVN(key) {
+  const dt = keyToDate(key);
+  return `${DOWS_FULL[dt.getDay()]}, ${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear()}`;
+}
+function formatShort(key) {
+  const dt = keyToDate(key);
+  return `${dt.getDate()}/${dt.getMonth() + 1}`;
+}
+
+/* ================= Logic công việc ================= */
+function isOnce(t) { return t.repeat === 'once'; }
+function onceDate(t) { return t.date || t.createdAt; }
+
+/* Một việc có hiệu lực vào một ngày hay không */
+function isActive(t, key) {
+  if (isOnce(t)) return key === onceDate(t);
+  return t.createdAt <= key && (!t.archivedAt || key < t.archivedAt);
+}
+function tasksForDay(key) {
+  return state.tasks.filter(t => isActive(t, key));
+}
+function isDone(key, taskId) {
+  return !!(state.records[key] && state.records[key][taskId]);
+}
+function doneCount(key) {
+  return tasksForDay(key).filter(t => isDone(key, t.id)).length;
+}
+function toggleTask(key, taskId) {
+  if (!state.records[key]) state.records[key] = {};
+  if (state.records[key][taskId]) delete state.records[key][taskId];
+  else state.records[key][taskId] = true;
+  if (Object.keys(state.records[key]).length === 0) delete state.records[key];
+  save();
+}
+
+/* Số việc tối thiểu để một ngày tính là hoàn thành */
+function dayThreshold(total) {
+  return state.minDone > 0 ? Math.min(state.minDone, total) : total;
+}
+function dayComplete(key) {
+  const total = tasksForDay(key).length;
+  if (total === 0) return false;
+  return doneCount(key) >= dayThreshold(total);
+}
+
+/* Chuỗi ngày hoàn thành liên tiếp, tính lùi từ hôm nay
+   (hôm nay chưa đạt thì tính lùi từ hôm qua) */
+function currentStreak() {
+  let streak = 0;
+  const d = new Date();
+  if (dayComplete(todayKey())) streak++;
+  d.setDate(d.getDate() - 1);
+  for (let i = 0; i < 3650; i++) {
+    const key = dateKey(d);
+    if (tasksForDay(key).length === 0) break;
+    if (dayComplete(key)) { streak++; d.setDate(d.getDate() - 1); }
+    else break;
+  }
+  return streak;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('span');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+/* ================= Tabs chính ================= */
+const views = { today: 'view-today', history: 'view-history', manage: 'view-manage' };
+let activeTab = 'today';
+function switchTab(tab) {
+  activeTab = tab;
+  for (const [name, viewId] of Object.entries(views)) {
+    document.getElementById(viewId).classList.toggle('hidden', name !== tab);
+    document.getElementById('tab-' + name).classList.toggle('active', name === tab);
+  }
+  render();
+}
+document.getElementById('tab-today').onclick = () => switchTab('today');
+document.getElementById('tab-history').onclick = () => switchTab('history');
+document.getElementById('tab-manage').onclick = () => switchTab('manage');
+
+/* ================= Tab Hôm nay ================= */
+function renderToday() {
+  const key = todayKey();
+  const tasks = tasksForDay(key);
+  const list = document.getElementById('todayList');
+  list.innerHTML = '';
+
+  if (tasks.length === 0) {
+    list.innerHTML = '<div class="empty">Hôm nay chưa có việc nào.<br>Sang tab <b>Công việc</b> để thêm những việc bạn muốn làm.</div>';
+  }
+
+  for (const t of tasks) {
+    const done = isDone(key, t.id);
+    const li = document.createElement('li');
+    if (done) li.className = 'done';
+    const cb = document.createElement('div');
+    cb.className = 'checkbox' + (done ? ' checked' : '');
+    cb.textContent = '✓';
+    const name = document.createElement('span');
+    name.className = 'task-name';
+    name.textContent = t.name;
+    const onToggle = () => { toggleTask(key, t.id); render(); };
+    cb.onclick = onToggle;
+    name.onclick = onToggle;
+    li.append(cb, name);
+    if (isOnce(t)) {
+      const tag = document.createElement('span');
+      tag.className = 'once-tag';
+      tag.textContent = '1 lần';
+      li.appendChild(tag);
+    }
+    list.appendChild(li);
+  }
+
+  const done = doneCount(key);
+  const total = tasks.length;
+  const pct = total ? Math.round(done / total * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = `${done}/${total}`;
+
+  const streak = currentStreak();
+  const thr = total > 0 ? dayThreshold(total) : 0;
+  if (streak > 0) {
+    document.getElementById('streakLabel').innerHTML =
+      `🔥 Chuỗi hoàn thành: <b>${streak} ngày</b> liên tiếp` +
+      (total > 0 && !dayComplete(key) ? ` — hôm nay cần ít nhất ${thr}/${total} việc để giữ chuỗi` : '');
+  } else {
+    document.getElementById('streakLabel').innerHTML = total > 0
+      ? `Làm ít nhất <b>${thr}/${total}</b> việc hôm nay để bắt đầu chuỗi 🔥`
+      : 'Hoàn thành việc mỗi ngày để xây chuỗi 🔥';
+  }
+}
+
+/* ================= Tab Lịch sử ================= */
+const now = new Date();
+let calYear = now.getFullYear();
+let calMonth = now.getMonth(); // 0-11
+let historyMode = 'matrix';    // matrix | stats
+
+document.getElementById('calPrev').onclick = () => {
+  calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; }
+  renderHistory();
+};
+document.getElementById('calNext').onclick = () => {
+  calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderHistory();
+};
+for (const btn of document.querySelectorAll('.subtabs button')) {
+  btn.onclick = () => { historyMode = btn.dataset.mode; renderHistory(); };
+}
+
+const HINTS = {
+  matrix: 'Bấm thẳng vào ô để tick / bỏ tick — sửa được mọi ngày từ ngày bắt đầu của việc. Muốn sửa sớm hơn nữa, lùi "ngày bắt đầu" của việc trong tab Công việc.',
+  stats: 'Thống kê tính trên toàn bộ thời gian, từ ngày bắt đầu của từng việc đến hôm nay (việc một lần không tính).',
+};
+
+/* Các việc xuất hiện trong tháng đang xem (kể cả đã lưu trữ giữa chừng) */
+function tasksForMonth() {
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const monthStart = dateKey(new Date(calYear, calMonth, 1));
+  const monthEnd = dateKey(new Date(calYear, calMonth, daysInMonth));
+  const daily = state.tasks.filter(t => !isOnce(t) &&
+    t.createdAt <= monthEnd && (!t.archivedAt || t.archivedAt > monthStart));
+  const once = state.tasks.filter(t => isOnce(t) &&
+    onceDate(t) >= monthStart && onceDate(t) <= monthEnd);
+  return [...daily, ...once];
+}
+
+function renderHistory() {
+  for (const btn of document.querySelectorAll('.subtabs button')) {
+    btn.classList.toggle('active', btn.dataset.mode === historyMode);
+  }
+  document.getElementById('monthNav').classList.toggle('hidden', historyMode === 'stats');
+  document.getElementById('calTitle').textContent = `Tháng ${calMonth + 1}, ${calYear}`;
+  document.getElementById('historyHint').textContent = HINTS[historyMode];
+
+  const body = document.getElementById('historyBody');
+  body.innerHTML = '';
+  if (historyMode === 'matrix') renderMatrix(body);
+  else renderStats(body);
+}
+
+function emptyMonthMsg(body) {
+  body.innerHTML = '<div class="empty">Chưa có dữ liệu trong khoảng thời gian này.</div>';
+}
+
+/* ===== Bảng lưới việc × ngày ===== */
+function renderMatrix(body) {
+  const tasks = tasksForMonth();
+  if (tasks.length === 0) return emptyMonthMsg(body);
+
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const tKey = todayKey();
+
+  const wrap = document.createElement('div');
+  wrap.className = 'matrix-wrap';
+  const table = document.createElement('table');
+  table.className = 'matrix';
+
+  // Hàng tiêu đề: số ngày + thứ
+  const thead = document.createElement('thead');
+  const hr = document.createElement('tr');
+  const corner = document.createElement('th');
+  corner.className = 'task-col';
+  corner.textContent = 'Việc';
+  hr.appendChild(corner);
+  for (let day = 1; day <= daysInMonth; day++) {
+    const key = dateKey(new Date(calYear, calMonth, day));
+    const th = document.createElement('th');
+    if (key === tKey) th.className = 'today-col';
+    th.innerHTML = `${day}<span class="dw">${DOWS_SHORT[keyToDate(key).getDay()]}</span>`;
+    hr.appendChild(th);
+  }
+  const pctHead = document.createElement('th');
+  pctHead.textContent = '%';
+  hr.appendChild(pctHead);
+  thead.appendChild(hr);
+  table.appendChild(thead);
+
+  // Mỗi hàng một việc
+  const tbody = document.createElement('tbody');
+  for (const t of tasks) {
+    const tr = document.createElement('tr');
+    const nameTd = document.createElement('td');
+    nameTd.className = 'task-col';
+    nameTd.title = t.name;
+    nameTd.textContent = t.name;
+    if (isOnce(t)) {
+      const tag = document.createElement('span');
+      tag.className = 'once-tag';
+      tag.textContent = '1 lần';
+      nameTd.appendChild(tag);
+    }
+    tr.appendChild(nameTd);
+
+    let activeDays = 0, doneDays = 0;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const key = dateKey(new Date(calYear, calMonth, day));
+      const td = document.createElement('td');
+      if (key === tKey) td.className = 'today-col';
+      const cell = document.createElement('span');
+
+      if (!isActive(t, key)) {
+        cell.className = 'm-cell na';
+      } else if (key > tKey) {
+        cell.className = 'm-cell future';
+      } else {
+        activeDays++;
+        const done = isDone(key, t.id);
+        if (done) doneDays++;
+        cell.className = 'm-cell ' + (done ? 'on' : 'off');
+        cell.textContent = done ? '✓' : '·';
+        cell.title = `${t.name} — ${formatVN(key)}`;
+        cell.onclick = () => { toggleTask(key, t.id); renderHistory(); };
+      }
+      td.appendChild(cell);
+      tr.appendChild(td);
+    }
+
+    const pctTd = document.createElement('td');
+    pctTd.className = 'pct';
+    pctTd.textContent = activeDays ? Math.round(doneDays / activeDays * 100) + '%' : '—';
+    tr.appendChild(pctTd);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+
+  // Hàng tổng theo ngày
+  const tfoot = document.createElement('tfoot');
+  const fr = document.createElement('tr');
+  const fl = document.createElement('td');
+  fl.className = 'task-col';
+  fl.textContent = 'Tổng';
+  fr.appendChild(fl);
+  for (let day = 1; day <= daysInMonth; day++) {
+    const key = dateKey(new Date(calYear, calMonth, day));
+    const td = document.createElement('td');
+    if (key === tKey) td.className = 'today-col';
+    const total = tasksForDay(key).length;
+    if (key <= tKey && total > 0) {
+      td.textContent = `${doneCount(key)}/${total}`;
+      if (dayComplete(key)) td.classList.add('full');
+    }
+    fr.appendChild(td);
+  }
+  fr.appendChild(document.createElement('td'));
+  tfoot.appendChild(fr);
+  table.appendChild(tfoot);
+
+  wrap.appendChild(table);
+  body.appendChild(wrap);
+}
+
+/* ===== Thống kê từng việc (toàn bộ thời gian, chỉ việc hằng ngày) ===== */
+function taskStreaks(t) {
+  const tKey = todayKey();
+  // Chuỗi hiện tại: lùi từ hôm nay (hôm nay chưa tick thì lùi từ hôm qua)
+  let current = 0;
+  const d = new Date();
+  if (isActive(t, tKey) && isDone(tKey, t.id)) current++;
+  d.setDate(d.getDate() - 1);
+  for (let i = 0; i < 3650; i++) {
+    const key = dateKey(d);
+    if (!isActive(t, key)) break;
+    if (isDone(key, t.id)) { current++; d.setDate(d.getDate() - 1); }
+    else break;
+  }
+  // Chuỗi dài nhất: duyệt từ ngày bắt đầu đến hôm nay
+  let longest = 0, run = 0;
+  const it = keyToDate(t.createdAt);
+  while (dateKey(it) <= tKey) {
+    const key = dateKey(it);
+    if (isActive(t, key) && isDone(key, t.id)) { run++; if (run > longest) longest = run; }
+    else run = 0;
+    it.setDate(it.getDate() + 1);
+  }
+  return { current, longest };
+}
+
+function renderStats(body) {
+  const tasks = state.tasks.filter(t => !isOnce(t) && !t.archivedAt);
+  if (tasks.length === 0) return emptyMonthMsg(body);
+
+  const tKey = todayKey();
+
+  for (const t of tasks) {
+    // Toàn bộ thời gian: từ ngày bắt đầu của việc đến hôm nay, cũ → mới
+    const days = [];
+    const d = keyToDate(t.createdAt);
+    while (dateKey(d) <= tKey) {
+      days.push(dateKey(d));
+      d.setDate(d.getDate() + 1);
+    }
+
+    let activeDays = 0, doneDays = 0;
+    const strip = document.createElement('div');
+    strip.className = 'strip';
+    for (const key of days) {
+      const sq = document.createElement('i');
+      if (!isActive(t, key)) {
+        sq.className = 'na';
+      } else {
+        activeDays++;
+        if (isDone(key, t.id)) { doneDays++; sq.className = 'on'; }
+      }
+      sq.title = `${formatVN(key)}: ${!isActive(t, key) ? 'chưa theo dõi' : (isDone(key, t.id) ? 'đã làm ✓' : 'chưa làm')}`;
+      strip.appendChild(sq);
+    }
+    const pct = activeDays ? Math.round(doneDays / activeDays * 100) : 0;
+    const { current, longest } = taskStreaks(t);
+
+    const item = document.createElement('div');
+    item.className = 'stat-item';
+
+    const top = document.createElement('div');
+    top.className = 'stat-top';
+    top.innerHTML = `<span class="sn">${escapeHtml(t.name)}</span><span class="sp">${pct}%</span>`;
+    item.appendChild(top);
+
+    const bar = document.createElement('div');
+    bar.className = 'stat-bar';
+    bar.innerHTML = `<div style="width:${pct}%"></div>`;
+    item.appendChild(bar);
+
+    item.appendChild(strip);
+
+    const meta = document.createElement('div');
+    meta.className = 'stat-meta';
+    meta.innerHTML =
+      `<span>Đã làm <b>${doneDays}/${activeDays}</b> ngày</span>` +
+      `<span>Chuỗi hiện tại: <b>${current}</b> ngày</span>` +
+      `<span>Chuỗi dài nhất: <b>${longest}</b> ngày</span>`;
+    item.appendChild(meta);
+
+    body.appendChild(item);
+  }
+}
+
+/* ================= Tab Công việc ================= */
+const repeatSelect = document.getElementById('newTaskRepeat');
+const dateInput = document.getElementById('newTaskDate');
+repeatSelect.onchange = () => {
+  dateInput.classList.toggle('hidden', repeatSelect.value !== 'once');
+  if (repeatSelect.value === 'once' && !dateInput.value) dateInput.value = todayKey();
+};
+
+function addTask() {
+  const input = document.getElementById('newTaskInput');
+  const name = input.value.trim();
+  if (!name) return;
+  const repeat = repeatSelect.value;
+  const task = {
+    id: 't' + Date.now() + Math.random().toString(36).slice(2, 6),
+    name,
+    repeat,
+    createdAt: todayKey(),
+    archivedAt: null,
+  };
+  if (repeat === 'once') task.date = dateInput.value || todayKey();
+  state.tasks.push(task);
+  save();
+  input.value = '';
+  render();
+  input.focus();
+}
+document.getElementById('addTaskBtn').onclick = addTask;
+document.getElementById('newTaskInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addTask();
+});
+
+const minDoneInput = document.getElementById('minDoneInput');
+minDoneInput.onchange = () => {
+  const v = parseInt(minDoneInput.value, 10);
+  state.minDone = Number.isFinite(v) && v >= 0 ? v : 0;
+  save();
+  render();
+};
+
+/* Kéo thả sắp xếp thứ tự việc hằng ngày */
+let draggedLi = null;
+
+function enableDrag(li, handle, onDrop) {
+  // Chỉ bắt đầu kéo từ tay nắm, để không vướng các nút / ô ngày trong dòng
+  handle.addEventListener('mousedown', () => { li.draggable = true; });
+  li.addEventListener('dragstart', (e) => {
+    draggedLi = li;
+    li.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  li.addEventListener('dragend', () => {
+    li.draggable = false;
+    li.classList.remove('dragging');
+    draggedLi = null;
+    onDrop();
+  });
+}
+
+// Sắp xếp lại li theo vị trí con trỏ trong lúc kéo
+document.getElementById('activeList').addEventListener('dragover', (e) => {
+  const listEl = e.currentTarget;
+  if (!draggedLi || draggedLi.parentElement !== listEl) return;
+  e.preventDefault();
+  const after = [...listEl.querySelectorAll('li:not(.dragging)')].find(el => {
+    const r = el.getBoundingClientRect();
+    return e.clientY < r.top + r.height / 2;
+  });
+  if (after) listEl.insertBefore(draggedLi, after);
+  else listEl.appendChild(draggedLi);
+});
+
+function applyDailyOrder() {
+  const orderedIds = [...document.querySelectorAll('#activeList li')].map(el => el.dataset.id);
+  const daily = orderedIds.map(id => state.tasks.find(t => t.id === id)).filter(Boolean);
+  const rest = state.tasks.filter(t => isOnce(t) || t.archivedAt);
+  state.tasks = [...daily, ...rest];
+  save();
+  render();
+}
+
+function makeRenameBtn(t) {
+  const btn = document.createElement('button');
+  btn.className = 'btn ghost small';
+  btn.textContent = 'Sửa tên';
+  btn.onclick = () => {
+    const newName = prompt('Tên mới cho việc này:', t.name);
+    if (newName && newName.trim()) { t.name = newName.trim(); save(); render(); }
+  };
+  return btn;
+}
+
+function makeDeleteBtn(t) {
+  const btn = document.createElement('button');
+  btn.className = 'btn ghost small danger';
+  btn.textContent = 'Xóa';
+  btn.onclick = () => {
+    if (!confirm(`Xóa hẳn "${t.name}"? Toàn bộ lịch sử tick của việc này sẽ bị xóa và không khôi phục được.`)) return;
+    for (const key of Object.keys(state.records)) {
+      if (state.records[key][t.id]) {
+        delete state.records[key][t.id];
+        if (Object.keys(state.records[key]).length === 0) delete state.records[key];
+      }
+    }
+    state.tasks = state.tasks.filter(x => x.id !== t.id);
+    save();
+    render();
+  };
+  return btn;
+}
+
+function renderManage() {
+  minDoneInput.value = state.minDone;
+  const activeList = document.getElementById('activeList');
+  const onceList = document.getElementById('onceList');
+  const archivedList = document.getElementById('archivedList');
+  activeList.innerHTML = '';
+  onceList.innerHTML = '';
+  archivedList.innerHTML = '';
+
+  const daily = state.tasks.filter(t => !isOnce(t) && !t.archivedAt);
+  const once = state.tasks.filter(t => isOnce(t)).sort((a, b) => onceDate(b) < onceDate(a) ? -1 : 1);
+  const archived = state.tasks.filter(t => !isOnce(t) && t.archivedAt);
+
+  if (daily.length === 0) {
+    activeList.innerHTML = '<div class="empty">Chưa có việc hằng ngày nào. Thêm việc đầu tiên ở ô phía trên!</div>';
+  }
+
+  for (const t of daily) {
+    const li = document.createElement('li');
+    li.dataset.id = t.id;
+
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.textContent = '⠿';
+    handle.title = 'Kéo để đổi vị trí';
+    enableDrag(li, handle, applyDailyOrder);
+
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = t.name;
+
+    const dateLabel = document.createElement('span');
+    dateLabel.className = 'date-label';
+    dateLabel.textContent = 'bắt đầu:';
+    const startInput = document.createElement('input');
+    startInput.type = 'date';
+    startInput.className = 'date-mini';
+    startInput.value = t.createdAt;
+    startInput.title = 'Đổi ngày bắt đầu — lùi lại để tick được cho những ngày sớm hơn';
+    startInput.onchange = () => {
+      if (startInput.value) { t.createdAt = startInput.value; save(); render(); }
+    };
+
+    const archiveBtn = document.createElement('button');
+    archiveBtn.className = 'btn ghost small';
+    archiveBtn.textContent = 'Lưu trữ';
+    archiveBtn.onclick = () => {
+      if (confirm(`Lưu trữ "${t.name}"? Việc này sẽ không xuất hiện từ hôm nay nữa, lịch sử cũ vẫn được giữ.`)) {
+        t.archivedAt = todayKey();
+        save(); render();
+      }
+    };
+
+    li.append(handle, name, dateLabel, startInput, makeRenameBtn(t), archiveBtn, makeDeleteBtn(t));
+    activeList.appendChild(li);
+  }
+
+  // Việc một lần
+  document.getElementById('onceSection').classList.toggle('hidden', once.length === 0);
+  for (const t of once) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = t.name;
+
+    const status = document.createElement('span');
+    const dk = onceDate(t);
+    if (isDone(dk, t.id)) {
+      status.className = 'archived-tag';
+      status.style.background = 'var(--green-soft)';
+      status.style.color = '#1d7a4d';
+      status.textContent = '✓ đã làm';
+    } else if (dk < todayKey()) {
+      status.className = 'archived-tag';
+      status.textContent = 'đã qua';
+    }
+
+    const dayInput = document.createElement('input');
+    dayInput.type = 'date';
+    dayInput.className = 'date-mini';
+    dayInput.value = dk;
+    dayInput.title = 'Đổi ngày của việc này';
+    dayInput.onchange = () => {
+      if (!dayInput.value) return;
+      // Chuyển cả dấu tick (nếu có) sang ngày mới
+      const wasDone = isDone(dk, t.id);
+      if (wasDone) toggleTask(dk, t.id);
+      t.date = dayInput.value;
+      if (wasDone) toggleTask(t.date, t.id);
+      save(); render();
+    };
+
+    li.append(name, status, dayInput, makeRenameBtn(t), makeDeleteBtn(t));
+    onceList.appendChild(li);
+  }
+
+  // Đã lưu trữ
+  document.getElementById('archivedSection').classList.toggle('hidden', archived.length === 0);
+  for (const t of archived) {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = t.name;
+    const tag = document.createElement('span');
+    tag.className = 'archived-tag';
+    tag.textContent = 'từ ' + t.archivedAt.split('-').reverse().join('/');
+
+    const restoreBtn = document.createElement('button');
+    restoreBtn.className = 'btn ghost small';
+    restoreBtn.textContent = 'Khôi phục';
+    restoreBtn.onclick = () => { t.archivedAt = null; save(); render(); };
+
+    li.append(name, tag, restoreBtn, makeDeleteBtn(t));
+    archivedList.appendChild(li);
+  }
+}
+
+/* ================= Render tổng ================= */
+function render() {
+  document.getElementById('todayLabel').textContent = formatVN(todayKey());
+  if (activeTab === 'today') renderToday();
+  else if (activeTab === 'history') renderHistory();
+  else renderManage();
+}
+
+render();
+</script>
+</body>
+</html>
