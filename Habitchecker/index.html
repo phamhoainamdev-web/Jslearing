@@ -183,6 +183,30 @@
   }
   .threshold-row input:focus { border-color: var(--primary); }
   .section-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin: 4px 0 8px; }
+
+  /* ===== Thành tựu ===== */
+  ul.ach-list { list-style: none; }
+  ul.ach-list li {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 4px; border-bottom: 1px solid var(--border);
+  }
+  ul.ach-list li:last-child { border-bottom: none; }
+  .ach-bullet { flex-shrink: 0; }
+  .ach-text { flex: 1; font-size: 15px; line-height: 1.5; word-break: break-word; }
+
+  /* Bảng nhật ký thành tựu (Lịch sử) */
+  .journal-wrap { overflow-x: auto; }
+  table.journal-table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  .journal-table th {
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .5px;
+    color: var(--muted); padding: 0 8px 8px; border-bottom: 2px solid var(--border);
+  }
+  .journal-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .journal-table tr:last-child td { border-bottom: none; }
+  .journal-table td.jt-date { white-space: nowrap; color: var(--muted); font-size: 13px; width: 1%; }
+  .journal-table td.jt-text { line-height: 1.5; word-break: break-word; }
+  .journal-table .row-actions { display: flex; gap: 6px; white-space: nowrap; }
+
   .hidden { display: none !important; }
 </style>
 </head>
@@ -209,6 +233,16 @@
       <div class="streak" id="streakLabel"></div>
       <ul class="task-list" id="todayList"></ul>
     </div>
+
+    <div class="card">
+      <div class="section-title" style="margin-top:0">🏆 Thành tựu hôm nay</div>
+      <div class="add-row" style="margin-bottom:12px">
+        <input id="newAchievementInput" type="text" maxlength="200"
+          placeholder="Hôm nay bạn đạt được gì? vd: Đã học JS">
+        <button class="btn" id="addAchievementBtn">Thêm</button>
+      </div>
+      <ul class="ach-list" id="todayAchievements"></ul>
+    </div>
   </section>
 
   <!-- ===== TAB LỊCH SỬ ===== -->
@@ -217,6 +251,7 @@
       <div class="subtabs">
         <button data-mode="matrix">Bảng</button>
         <button data-mode="stats">Thống kê</button>
+        <button data-mode="journal">Thành tựu</button>
       </div>
 
       <div class="cal-header" id="monthNav">
@@ -307,6 +342,8 @@ function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
 const state = load();
 // Ngưỡng hoàn thành ngày: làm ít nhất n việc là ngày đó tính hoàn thành (0 = phải đủ tất cả)
 if (typeof state.minDone !== 'number') state.minDone = 3;
+// Thành tựu: mảng [{ id, date: 'YYYY-MM-DD', text }] — nhiều thành tựu mỗi ngày
+state.achievements = toAchievementArray(state.achievements);
 
 /* ================= Tiện ích ngày tháng ================= */
 function dateKey(d) {
@@ -387,6 +424,46 @@ function currentStreak() {
   return streak;
 }
 
+/* ================= Thành tựu mỗi ngày ================= */
+function newAchId() { return 'a' + Date.now() + Math.random().toString(36).slice(2, 6); }
+
+/* Chuẩn hóa về mảng [{id, date, text}] — chấp nhận cả dạng cũ { 'YYYY-MM-DD': 'text' } */
+function toAchievementArray(value) {
+  if (Array.isArray(value)) {
+    return value
+      .filter(a => a && a.text)
+      .map(a => ({ id: a.id || newAchId(), date: a.date || todayKey(), text: String(a.text) }));
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value)
+      .filter(([, t]) => t)
+      .map(([date, text]) => ({ id: newAchId(), date, text: String(text) }));
+  }
+  return [];
+}
+
+function achievementsForDay(key) {
+  return state.achievements.filter(a => a.date === key);
+}
+function addAchievement(date, text) {
+  text = text.trim();
+  if (!text) return;
+  state.achievements.push({ id: newAchId(), date, text });
+  save();
+}
+function deleteAchievement(id) {
+  state.achievements = state.achievements.filter(a => a.id !== id);
+  save();
+}
+function editAchievement(id, text) {
+  const a = state.achievements.find(x => x.id === id);
+  if (!a) return;
+  text = text.trim();
+  if (text) a.text = text;
+  else state.achievements = state.achievements.filter(x => x.id !== id);
+  save();
+}
+
 function escapeHtml(s) {
   const d = document.createElement('span');
   d.textContent = s;
@@ -459,7 +536,49 @@ function renderToday() {
       ? `Làm ít nhất <b>${thr}/${total}</b> việc hôm nay để bắt đầu chuỗi 🔥`
       : 'Hoàn thành việc mỗi ngày để xây chuỗi 🔥';
   }
+
+  renderTodayAchievements();
 }
+
+function renderTodayAchievements() {
+  const key = todayKey();
+  const list = document.getElementById('todayAchievements');
+  list.innerHTML = '';
+  const items = achievementsForDay(key);
+  if (items.length === 0) {
+    list.innerHTML = '<div class="empty" style="padding:16px 10px">Chưa ghi thành tựu nào hôm nay. Thêm ở ô phía trên 🏆</div>';
+    return;
+  }
+  for (const a of items) {
+    const li = document.createElement('li');
+    const bullet = document.createElement('span');
+    bullet.className = 'ach-bullet';
+    bullet.textContent = '🏆';
+    const text = document.createElement('span');
+    text.className = 'ach-text';
+    text.textContent = a.text;
+    const del = document.createElement('button');
+    del.className = 'btn ghost small danger';
+    del.textContent = 'Xóa';
+    del.onclick = () => { deleteAchievement(a.id); render(); };
+    li.append(bullet, text, del);
+    list.appendChild(li);
+  }
+}
+
+function addAchievementFromInput() {
+  const input = document.getElementById('newAchievementInput');
+  const text = input.value.trim();
+  if (!text) return;
+  addAchievement(todayKey(), text);
+  input.value = '';
+  render();
+  input.focus();
+}
+document.getElementById('addAchievementBtn').onclick = addAchievementFromInput;
+document.getElementById('newAchievementInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addAchievementFromInput();
+});
 
 /* ================= Tab Lịch sử ================= */
 const now = new Date();
@@ -482,6 +601,7 @@ for (const btn of document.querySelectorAll('.subtabs button')) {
 const HINTS = {
   matrix: 'Bấm thẳng vào ô để tick / bỏ tick — sửa được mọi ngày từ ngày bắt đầu của việc. Muốn sửa sớm hơn nữa, lùi "ngày bắt đầu" của việc trong tab Công việc.',
   stats: 'Thống kê tính trên toàn bộ thời gian, từ ngày bắt đầu của từng việc đến hôm nay (việc một lần không tính).',
+  journal: 'Nhật ký thành tựu theo ngày, mới nhất ở trên. Ghi thành tựu mới ở tab Hôm nay.',
 };
 
 /* Các việc xuất hiện trong tháng đang xem (kể cả đã lưu trữ giữa chừng) */
@@ -500,14 +620,15 @@ function renderHistory() {
   for (const btn of document.querySelectorAll('.subtabs button')) {
     btn.classList.toggle('active', btn.dataset.mode === historyMode);
   }
-  document.getElementById('monthNav').classList.toggle('hidden', historyMode === 'stats');
+  document.getElementById('monthNav').classList.toggle('hidden', historyMode !== 'matrix');
   document.getElementById('calTitle').textContent = `Tháng ${calMonth + 1}, ${calYear}`;
   document.getElementById('historyHint').textContent = HINTS[historyMode];
 
   const body = document.getElementById('historyBody');
   body.innerHTML = '';
   if (historyMode === 'matrix') renderMatrix(body);
-  else renderStats(body);
+  else if (historyMode === 'stats') renderStats(body);
+  else renderJournal(body);
 }
 
 function emptyMonthMsg(body) {
@@ -706,6 +827,71 @@ function renderStats(body) {
   }
 }
 
+/* ===== Bảng nhật ký thành tựu (toàn bộ thời gian, ngày mới ở trên) ===== */
+function renderJournal(body) {
+  if (state.achievements.length === 0) {
+    body.innerHTML = '<div class="empty">Chưa có thành tựu nào được ghi.<br>Sang tab <b>Hôm nay</b> để ghi lại thành tựu đầu tiên 🏆</div>';
+    return;
+  }
+
+  // Ngày mới nhất lên trên; trong cùng ngày giữ thứ tự lúc thêm
+  const items = state.achievements
+    .map((a, i) => ({ a, i }))
+    .sort((x, y) => x.a.date !== y.a.date ? (x.a.date < y.a.date ? 1 : -1) : x.i - y.i)
+    .map(x => x.a);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'journal-wrap';
+  const table = document.createElement('table');
+  table.className = 'journal-table';
+  table.innerHTML = '<thead><tr><th>Ngày</th><th>Thành tựu</th><th></th></tr></thead>';
+
+  const tbody = document.createElement('tbody');
+  for (const a of items) {
+    const tr = document.createElement('tr');
+
+    const dateTd = document.createElement('td');
+    dateTd.className = 'jt-date';
+    dateTd.textContent = formatDMY(a.date);
+    dateTd.title = formatVN(a.date);
+
+    const textTd = document.createElement('td');
+    textTd.className = 'jt-text';
+    textTd.textContent = a.text;
+
+    const actTd = document.createElement('td');
+    const actions = document.createElement('div');
+    actions.className = 'row-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn ghost small';
+    editBtn.textContent = 'Sửa';
+    editBtn.onclick = () => {
+      const v = prompt('Sửa thành tựu — ' + formatDMY(a.date) + ':', a.text);
+      if (v === null) return;
+      editAchievement(a.id, v);
+      render();
+    };
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn ghost small danger';
+    delBtn.textContent = 'Xóa';
+    delBtn.onclick = () => {
+      if (!confirm('Xóa thành tựu này?\n\n' + a.text)) return;
+      deleteAchievement(a.id);
+      render();
+    };
+
+    actions.append(editBtn, delBtn);
+    actTd.appendChild(actions);
+    tr.append(dateTd, textTd, actTd);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  body.appendChild(wrap);
+}
+
 /* ================= Tab Công việc ================= */
 /* Input date của trình duyệt hiện theo ngôn ngữ trình duyệt (có thể là tháng/ngày),
    nên ta ẩn nó đi, tự hiện chữ dd/mm/yyyy trên nút, bấm nút thì mở lịch của input */
@@ -809,6 +995,7 @@ importFile.onchange = () => {
     state.tasks = data.tasks;
     state.records = data.records;
     state.minDone = typeof data.minDone === 'number' ? data.minDone : 3;
+    state.achievements = toAchievementArray(data.achievements);
     save();
     render();
     alert('Đã nhập dữ liệu thành công ✓');
