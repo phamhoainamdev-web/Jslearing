@@ -119,6 +119,13 @@
   .matrix tfoot td { font-size: 10.5px; color: var(--muted); padding-top: 6px; font-weight: 600; }
   .matrix tfoot td.full { color: var(--green); }
 
+  /* Việc một lần liệt kê riêng dưới bảng */
+  .once-log { list-style: none; margin-top: 4px; }
+  .once-log li { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--border); }
+  .once-log li:last-child { border-bottom: none; }
+  .once-log .od { font-size: 13px; color: var(--muted); min-width: 80px; }
+  .once-log .on-name { flex: 1; font-size: 14.5px; word-break: break-word; }
+
   /* ===== Thống kê từng việc ===== */
   .stat-item { padding: 14px 4px; border-bottom: 1px solid var(--border); }
   .stat-item:last-child { border-bottom: none; }
@@ -408,6 +415,20 @@ function dayComplete(key) {
   return doneCount(key) >= dayThreshold(total);
 }
 
+/* Cùng logic nhưng chỉ tính việc hằng ngày — dùng cho bảng Lịch sử,
+   để việc một lần không lẫn vào số liệu của bảng */
+function dailyTasksForDay(key) {
+  return state.tasks.filter(t => !isOnce(t) && isActive(t, key));
+}
+function dailyDoneCount(key) {
+  return dailyTasksForDay(key).filter(t => isDone(key, t.id)).length;
+}
+function dailyComplete(key) {
+  const total = dailyTasksForDay(key).length;
+  if (total === 0) return false;
+  return dailyDoneCount(key) >= dayThreshold(total);
+}
+
 /* Chuỗi ngày hoàn thành liên tiếp, tính lùi từ hôm nay
    (hôm nay chưa đạt thì tính lùi từ hôm qua) */
 function currentStreak() {
@@ -599,7 +620,7 @@ for (const btn of document.querySelectorAll('.subtabs button')) {
 }
 
 const HINTS = {
-  matrix: 'Bấm thẳng vào ô để tick / bỏ tick — sửa được mọi ngày từ ngày bắt đầu của việc. Muốn sửa sớm hơn nữa, lùi "ngày bắt đầu" của việc trong tab Công việc.',
+  matrix: 'Bảng chỉ gồm việc hằng ngày. Bấm thẳng vào ô để tick / bỏ tick — sửa được mọi ngày từ ngày bắt đầu của việc. Việc một lần được liệt kê riêng bên dưới bảng, vẫn xem và tick được theo từng ngày.',
   stats: 'Thống kê tính trên toàn bộ thời gian, từ ngày bắt đầu của từng việc đến hôm nay (việc một lần không tính).',
   journal: 'Nhật ký thành tựu theo ngày, mới nhất ở trên. Ghi thành tựu mới ở tab Hôm nay.',
 };
@@ -635,11 +656,21 @@ function emptyMonthMsg(body) {
   body.innerHTML = '<div class="empty">Chưa có dữ liệu trong khoảng thời gian này.</div>';
 }
 
-/* ===== Bảng lưới việc × ngày ===== */
+/* ===== Bảng lưới: việc hằng ngày × ngày (việc một lần tách riêng bên dưới) ===== */
 function renderMatrix(body) {
-  const tasks = tasksForMonth();
-  if (tasks.length === 0) return emptyMonthMsg(body);
+  const monthTasks = tasksForMonth();
+  const daily = monthTasks.filter(t => !isOnce(t));
+  const once = monthTasks.filter(isOnce);
+  if (daily.length === 0 && once.length === 0) return emptyMonthMsg(body);
 
+  if (daily.length) renderDailyMatrix(body, daily);
+  else body.insertAdjacentHTML('beforeend',
+    '<div class="empty">Tháng này chưa có việc hằng ngày nào.</div>');
+
+  if (once.length) renderOnceSection(body, once);
+}
+
+function renderDailyMatrix(body, tasks) {
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
   const tKey = todayKey();
 
@@ -676,12 +707,6 @@ function renderMatrix(body) {
     nameTd.className = 'task-col';
     nameTd.title = t.name;
     nameTd.textContent = t.name;
-    if (isOnce(t)) {
-      const tag = document.createElement('span');
-      tag.className = 'once-tag';
-      tag.textContent = '1 lần';
-      nameTd.appendChild(tag);
-    }
     tr.appendChild(nameTd);
 
     let activeDays = 0, doneDays = 0;
@@ -727,10 +752,10 @@ function renderMatrix(body) {
     const key = dateKey(new Date(calYear, calMonth, day));
     const td = document.createElement('td');
     if (key === tKey) td.className = 'today-col';
-    const total = tasksForDay(key).length;
+    const total = dailyTasksForDay(key).length;
     if (key <= tKey && total > 0) {
-      td.textContent = `${doneCount(key)}/${total}`;
-      if (dayComplete(key)) td.classList.add('full');
+      td.textContent = `${dailyDoneCount(key)}/${total}`;
+      if (dailyComplete(key)) td.classList.add('full');
     }
     fr.appendChild(td);
   }
@@ -740,6 +765,49 @@ function renderMatrix(body) {
 
   wrap.appendChild(table);
   body.appendChild(wrap);
+}
+
+/* Danh sách việc một lần trong tháng — xem lại ngày nào có việc gì, vẫn tick được */
+function renderOnceSection(body, once) {
+  const tKey = todayKey();
+  once.sort((a, b) => onceDate(a) < onceDate(b) ? -1 : 1);
+
+  const title = document.createElement('div');
+  title.className = 'section-title';
+  title.style.marginTop = '18px';
+  title.textContent = '🔖 Việc một lần trong tháng';
+  body.appendChild(title);
+
+  const ul = document.createElement('ul');
+  ul.className = 'once-log';
+  for (const t of once) {
+    const key = onceDate(t);
+    const li = document.createElement('li');
+
+    const cell = document.createElement('span');
+    if (key > tKey) {
+      cell.className = 'm-cell future';
+    } else {
+      const done = isDone(key, t.id);
+      cell.className = 'm-cell ' + (done ? 'on' : 'off');
+      cell.textContent = done ? '✓' : '·';
+      cell.title = `${t.name} — ${formatVN(key)}`;
+      cell.onclick = () => { toggleTask(key, t.id); renderHistory(); };
+    }
+
+    const dd = document.createElement('span');
+    dd.className = 'od';
+    dd.textContent = formatDMY(key);
+    dd.title = formatVN(key);
+
+    const nm = document.createElement('span');
+    nm.className = 'on-name';
+    nm.textContent = t.name;
+
+    li.append(cell, dd, nm);
+    ul.appendChild(li);
+  }
+  body.appendChild(ul);
 }
 
 /* ===== Thống kê từng việc (toàn bộ thời gian, chỉ việc hằng ngày) ===== */
