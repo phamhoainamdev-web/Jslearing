@@ -2,28 +2,31 @@
  <html>
     <head>
         <style>
-            body {background-color: lightblue;}
+            body {background-color: rgba(255, 249, 249, 0.605);}
             input {font-size: 20px;}
             button {font-size: 20px;}
             #danhsachtodo {font-size: 20px;}
             li {margin-bottom: 20px;
-                font-size: 20px;
-            }
+                font-size: 20px;}
+            #app {background-color: white; 
+                padding: 50px;}
         </style>
     </head>
 
     <body>
-        <input id="todoinput" placeholder = "Nhập việc cần làm" />
-        <button onclick="themtodo()">Thêm</button>
-        <button onclick="filter ='all'; taodanhsach()">All</button>
-        <button onclick="filter ='complete'; taodanhsach()">Hoàn Thành</button>
-        <button onclick="filter ='uncomplete'; taodanhsach()">Chưa Hoàn Thành</button>
-        <button onclick="xoadanhsachdahoanthanh()">Xóa việc đã hoàn thành</button>
-        <p style="font-size: 20px;">Danh sách:</p>
-        <p id ="thongbao"></p>
-        <ol id = "danhsachtodo"></ol>
-        <p id = "soviecconlai"></p>
-        <p id ="suadanhsach"></p>
+        <div id="app">   
+            <input id="todoinput" placeholder = "Nhập việc cần làm" />
+            <button onclick="themtodo()">Thêm</button>
+            <button onclick="filter ='all'; taodanhsach()">All</button>
+            <button onclick="filter ='complete'; taodanhsach()">Hoàn Thành</button>
+            <button onclick="filter ='uncomplete'; taodanhsach()">Chưa Hoàn Thành</button>
+            <button onclick="xoadanhsachdahoanthanh()">Xóa việc đã hoàn thành</button>
+            <p style="font-size: 20px;">Danh sách:</p>
+            <p id ="thongbao"></p>
+            <ol id = "danhsachtodo"></ol>
+            <p id = "soviecconlai"></p>
+            <p id ="suadanhsach"></p>
+        </div>
     </body>
 
     <script>
