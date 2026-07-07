@@ -1,0 +1,16 @@
+{
+  "name": "Habit Checker",
+  "short_name": "Habits",
+  "description": "Việc cần làm mỗi ngày — theo dõi thói quen, chuỗi ngày và thành tựu",
+  "lang": "vi",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f5f7",
+  "theme_color": "#4f6ef7",
+  "icons": [
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

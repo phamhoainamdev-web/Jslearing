@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#4f6ef7">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-512.png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <title>Habit Checker — Việc cần làm mỗi ngày</title>
 <style>
   :root {
@@ -252,7 +256,7 @@
 <div class="container">
   <header>
     <h1>✅ Habit Checker</h1>
-    <span class="date" id="todayLabel"></span>
+    <span class="date"><span id="syncDot" class="hidden" style="margin-right:6px; cursor:pointer"></span><span id="todayLabel"></span></span>
   </header>
 
   <div class="tabs">
@@ -360,7 +364,7 @@
       <p class="hint">💡 Kéo tay nắm <b>⠿</b> để đổi thứ tự — thứ tự này áp dụng cho cả tab Hôm nay và Lịch sử.<br>
       💡 <b>Lưu trữ</b> sẽ ẩn việc khỏi danh sách hằng ngày nhưng vẫn giữ nguyên lịch sử các ngày đã làm trước đó. <b>Xóa</b> mới mất hẳn cả lịch sử.<br>
       💡 Việc chỉ được tính từ <b>ngày bắt đầu</b> — muốn tick cho những ngày sớm hơn, hãy lùi ngày bắt đầu lại bằng ô ngày bên cạnh tên việc.<br>
-      💡 <b>Việc một lần</b> chỉ xuất hiện đúng ngày bạn chọn, không tính vào chuỗi/thống kê dài hạn.<br>
+      💡 <b>Việc một lần</b> chỉ xuất hiện đúng ngày bạn chọn, không tính vào chuỗi/thống kê dài hạn. Việc một lần <b>đã hoàn thành</b> sẽ tự ẩn khỏi danh sách này khi sang tháng mới — xem lại trong tab <b>Lịch sử</b> của tháng đó.<br>
       💡 <b>Xuất file sao lưu</b> để chuyển dữ liệu sang máy/điện thoại khác: xuất ở máy này, gửi file qua (Zalo, email...), rồi <b>Nhập từ file</b> ở máy kia — dữ liệu tab <b>Học JS</b> cũng nằm trong file này.<br>
       💡 <b>Đồng bộ online</b>: dữ liệu được lưu vào một Gist bí mật trên tài khoản GitHub của bạn, mở app là tự tải bản mới nhất về. Tạo token tại <b>GitHub → Settings → Developer settings → Personal access tokens (classic)</b>, chỉ tick quyền <b>gist</b>. Trên máy khác chỉ cần dán đúng token đó rồi bấm Kết nối — app tự tìm ra dữ liệu, không cần nhớ Gist ID. Nếu hai máy cùng sửa khi offline thì bản lưu <b>sau</b> sẽ thắng.</p>
     </div>
@@ -457,6 +461,7 @@ let syncReady = false;  // chỉ tự đẩy lên sau khi đã đối chiếu v�
 let syncBusy = false;
 let syncDirty = false;
 let syncTimer = null;
+let syncLastReconcile = 0;
 
 function saveSyncConfig() {
   if (syncConfig) localStorage.setItem(SYNC_KEY, JSON.stringify(syncConfig));
@@ -473,11 +478,18 @@ function setSyncStatus(text, isError) {
   const el = document.getElementById('syncStatus');
   el.textContent = text;
   el.style.color = isError ? 'var(--red)' : '';
+  // Chấm trạng thái trên header — thấy được từ mọi tab
+  const dot = document.getElementById('syncDot');
+  dot.classList.toggle('hidden', !syncConfig);
+  dot.textContent = isError ? '⚠' : (text.startsWith('Đang') ? '⏳' : '☁️');
+  dot.title = text + ' — bấm để mở cài đặt đồng bộ';
 }
 function updateSyncUI() {
   document.getElementById('syncSetupRow').classList.toggle('hidden', !!syncConfig);
   document.getElementById('syncStatusRow').classList.toggle('hidden', !syncConfig);
+  document.getElementById('syncDot').classList.toggle('hidden', !syncConfig);
 }
+document.getElementById('syncDot').onclick = () => switchTab('manage');
 
 async function gistPull() {
   const res = await fetch(`${GIST_API}/${syncConfig.gistId}`, { headers: gistHeaders() });
@@ -543,6 +555,7 @@ async function syncPushNow() {
 /* Đối chiếu 2 chiều: bản nào mới hơn thì thắng */
 async function syncReconcile() {
   if (!syncConfig) return;
+  syncLastReconcile = Date.now();
   setSyncStatus('Đang đồng bộ…');
   try {
     const remote = await gistPull();
@@ -1448,7 +1461,12 @@ function renderManage() {
   archivedList.innerHTML = '';
 
   const daily = state.tasks.filter(t => !isOnce(t) && !t.archivedAt);
-  const once = state.tasks.filter(t => isOnce(t)).sort((a, b) => onceDate(b) < onceDate(a) ? -1 : 1);
+  // Việc một lần đã hoàn thành chỉ hiện đến hết tháng của nó — sang tháng thì ẩn
+  // khỏi danh sách (vẫn xem lại được trong Lịch sử); việc chưa làm thì hiện mãi
+  const thisMonth = todayKey().slice(0, 7);
+  const once = state.tasks
+    .filter(t => isOnce(t) && !(isDone(onceDate(t), t.id) && onceDate(t).slice(0, 7) < thisMonth))
+    .sort((a, b) => onceDate(b) < onceDate(a) ? -1 : 1);
   const archived = state.tasks.filter(t => !isOnce(t) && t.archivedAt);
 
   if (daily.length === 0) {
@@ -2007,6 +2025,30 @@ function render() {
 render();
 updateSyncUI();
 syncReconcile();
+
+/* ===== Qua ngày mới thì render lại =====
+   Tab để mở qua đêm (hoặc PWA nằm nền trên điện thoại) mà không render lại
+   thì tab Hôm nay vẫn hiện ngày hôm qua, tick vào là tick nhầm ngày. */
+let renderedDay = todayKey();
+function checkDayRollover() {
+  if (todayKey() === renderedDay) return;
+  renderedDay = todayKey();
+  render();
+}
+setInterval(checkDayRollover, 30000);
+
+/* Quay lại app (chuyển tab về, mở PWA từ nền) — kiểm tra ngày mới,
+   và nếu đã lâu chưa đối chiếu với bản online thì đối chiếu lại */
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  checkDayRollover();
+  if (syncConfig && !syncBusy && Date.now() - syncLastReconcile > 120000) syncReconcile();
+});
+
+/* ===== PWA: đăng ký service worker (bỏ qua khi mở file trực tiếp) ===== */
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  navigator.serviceWorker.register('sw.js').catch(() => { /* không chặn app */ });
+}
 </script>
 </body>
 </html>
