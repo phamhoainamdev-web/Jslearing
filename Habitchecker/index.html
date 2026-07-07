@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#4f6ef7">
+<meta name="theme-color" content="#4f6ef7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#14161c" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" href="icon-512.png">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -23,6 +24,55 @@
     --border: #e3e6ee;
     --radius: 14px;
     --shadow: 0 1px 3px rgba(20,24,40,.07), 0 8px 24px rgba(20,24,40,.05);
+    /* Màu phụ — đổi theo theme */
+    --chip: #e9ebf1;        /* nền dải tabs */
+    --soft: #eef0f5;        /* nền phụ: subtabs, ô chưa tick, tag */
+    --soft-hover: #dfe3ec;
+    --track: #edf0f6;       /* nền thanh tiến độ */
+    --field: #ffffff;       /* nền input / nút / ô */
+    --faint: #c5cbda;       /* icon mờ, chấm chưa tick */
+    --cb-border: #c7cddd;   /* viền checkbox */
+    --dw: #b0b6c6;          /* chữ thứ trong tuần trên bảng */
+    --future: #f7f8fb;
+    --amber-soft: #fdf3e3;
+    --red-soft: #fdf0f0;
+    --red-border: #f3cdcd;
+    --heat1: #cdeedd;       /* 3 mức giữa của heatmap (mức 4 = --green) */
+    --heat2: #8fd8b2;
+    --heat3: #52c08b;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161c;
+      --card: #1e222b;
+      --text: #e8eaf1;
+      --muted: #98a0b3;
+      --primary: #7b93ff;
+      --primary-soft: #2a3354;
+      --green: #3dc57f;
+      --green-soft: #1e3a2b;
+      --amber: #f0a330;
+      --red: #ef6b6b;
+      --border: #2b303c;
+      --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+      --chip: #101218;
+      --soft: #272c38;
+      --soft-hover: #333947;
+      --track: #272c38;
+      --field: #262b36;
+      --faint: #4d5468;
+      --cb-border: #454c5e;
+      --dw: #5d6579;
+      --future: #1a1e26;
+      --amber-soft: #3a2f18;
+      --red-soft: #3b2426;
+      --red-border: #5a3438;
+      --heat1: #21432f;
+      --heat2: #27714b;
+      --heat3: #2f9c63;
+      color-scheme: dark;
+    }
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -37,7 +87,7 @@
   header h1 { font-size: 22px; }
   header .date { color: var(--muted); font-size: 14px; }
 
-  .tabs { display: flex; gap: 6px; background: #e9ebf1; padding: 4px; border-radius: 12px; margin-bottom: 18px; }
+  .tabs { display: flex; gap: 6px; background: var(--chip); padding: 4px; border-radius: 12px; margin-bottom: 18px; }
   .tabs button {
     flex: 1; border: none; background: transparent; padding: 9px 0;
     border-radius: 9px; font-size: 14px; font-weight: 600; color: var(--muted);
@@ -49,7 +99,7 @@
 
   /* ===== Hôm nay ===== */
   .progress-row { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
-  .progress-bar { flex: 1; height: 10px; background: #edf0f6; border-radius: 99px; overflow: hidden; }
+  .progress-bar { flex: 1; height: 10px; background: var(--track); border-radius: 99px; overflow: hidden; }
   .progress-bar > div { height: 100%; background: var(--green); border-radius: 99px; transition: width .25s; }
   .progress-label { font-size: 14px; font-weight: 700; min-width: 42px; text-align: right; }
   .streak { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
@@ -62,9 +112,9 @@
   }
   ul.task-list li:last-child { border-bottom: none; }
   .checkbox {
-    width: 24px; height: 24px; border-radius: 8px; border: 2px solid #c7cddd;
+    width: 24px; height: 24px; border-radius: 8px; border: 2px solid var(--cb-border);
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer; flex-shrink: 0; transition: all .15s; background: #fff;
+    cursor: pointer; flex-shrink: 0; transition: all .15s; background: var(--field);
     font-size: 14px; color: transparent;
   }
   .checkbox.checked { background: var(--green); border-color: var(--green); color: #fff; }
@@ -72,13 +122,13 @@
   li.done .task-name { color: var(--muted); text-decoration: line-through; }
   .once-tag {
     font-size: 10.5px; font-weight: 700; color: var(--amber);
-    background: #fdf3e3; padding: 2px 8px; border-radius: 99px; flex-shrink: 0;
+    background: var(--amber-soft); padding: 2px 8px; border-radius: 99px; flex-shrink: 0;
   }
 
   .empty { text-align: center; color: var(--muted); padding: 30px 10px; font-size: 14px; line-height: 1.6; }
 
   /* ===== Lịch sử: chung ===== */
-  .subtabs { display: flex; gap: 4px; background: #eef0f5; padding: 3px; border-radius: 10px; margin-bottom: 14px; }
+  .subtabs { display: flex; gap: 4px; background: var(--soft); padding: 3px; border-radius: 10px; margin-bottom: 14px; }
   .subtabs button {
     flex: 1; border: none; background: transparent; padding: 7px 0;
     border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer;
@@ -89,7 +139,7 @@
   .cal-header h2 { font-size: 16px; }
   .cal-nav { display: flex; gap: 6px; }
   .cal-nav button {
-    width: 32px; height: 32px; border: 1px solid var(--border); background: #fff;
+    width: 32px; height: 32px; border: 1px solid var(--border); background: var(--field);
     border-radius: 8px; cursor: pointer; font-size: 15px; color: var(--text);
   }
   .cal-nav button:hover { background: var(--primary-soft); }
@@ -100,7 +150,7 @@
   table.matrix { border-collapse: collapse; font-size: 12px; min-width: 100%; }
   .matrix th, .matrix td { padding: 3px; text-align: center; white-space: nowrap; }
   .matrix thead th { font-weight: 600; color: var(--muted); font-size: 11px; padding-bottom: 6px; }
-  .matrix thead th .dw { display: block; font-size: 9px; font-weight: 500; color: #b0b6c6; }
+  .matrix thead th .dw { display: block; font-size: 9px; font-weight: 500; color: var(--dw); }
   .matrix th.task-col, .matrix td.task-col {
     text-align: left; position: sticky; left: 0; background: var(--card);
     font-size: 13px; font-weight: 500; max-width: 150px; overflow: hidden;
@@ -115,10 +165,10 @@
     font-size: 12px; cursor: pointer; user-select: none;
   }
   .m-cell.on { background: var(--green); color: #fff; }
-  .m-cell.off { background: #eef0f5; color: #c2c8d8; }
-  .m-cell.off:hover { background: #dfe3ec; }
+  .m-cell.off { background: var(--soft); color: var(--faint); }
+  .m-cell.off:hover { background: var(--soft-hover); }
   .m-cell.na { background: transparent; cursor: default; }
-  .m-cell.future { background: #f7f8fb; cursor: default; color: transparent; }
+  .m-cell.future { background: var(--future); cursor: default; color: transparent; }
   .matrix td.pct { font-weight: 700; font-size: 12px; padding-left: 8px; }
   .matrix tfoot td { font-size: 10.5px; color: var(--muted); padding-top: 6px; font-weight: 600; }
   .matrix tfoot td.full { color: var(--green); }
@@ -130,18 +180,35 @@
   .once-log .od { font-size: 13px; color: var(--muted); min-width: 80px; }
   .once-log .on-name { flex: 1; font-size: 14.5px; word-break: break-word; }
 
+  /* ===== Heatmap cả năm ===== */
+  .year-wrap { overflow-x: auto; padding-bottom: 4px; }
+  .year-months { position: relative; height: 16px; font-size: 10px; color: var(--muted); }
+  .year-months span { position: absolute; top: 0; }
+  .year-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 12px); grid-auto-columns: 12px; gap: 3px; }
+  .yr-cell { width: 12px; height: 12px; border-radius: 3px; background: var(--soft); display: block; }
+  .yr-cell.na { background: transparent; }
+  .yr-cell.future { background: var(--future); }
+  .yr-cell.l1 { background: var(--heat1); }
+  .yr-cell.l2 { background: var(--heat2); }
+  .yr-cell.l3 { background: var(--heat3); }
+  .yr-cell.l4 { background: var(--green); }
+  .yr-cell.click { cursor: pointer; }
+  .year-legend { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); margin-top: 10px; }
+  .year-summary { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
+  .year-summary b { color: var(--text); }
+
   /* ===== Thống kê từng việc ===== */
   .stat-item { padding: 14px 4px; border-bottom: 1px solid var(--border); }
   .stat-item:last-child { border-bottom: none; }
   .stat-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
   .stat-top .sn { font-size: 15px; font-weight: 600; }
   .stat-top .sp { font-size: 14px; font-weight: 700; color: var(--green); }
-  .stat-bar { height: 8px; background: #edf0f6; border-radius: 99px; overflow: hidden; margin-bottom: 10px; }
+  .stat-bar { height: 8px; background: var(--track); border-radius: 99px; overflow: hidden; margin-bottom: 10px; }
   .stat-bar > div { height: 100%; background: var(--green); border-radius: 99px; }
   .strip { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 8px; }
   .strip i {
     width: 14px; aspect-ratio: 1; border-radius: 4px;
-    background: #eef0f5; display: block; flex: none;
+    background: var(--soft); display: block; flex: none;
   }
   .strip i.on { background: var(--green); }
   .strip i.na { background: transparent; border: 1px dashed var(--border); }
@@ -152,12 +219,12 @@
   .add-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
   .add-row input[type="text"], .add-row input[type="password"] {
     flex: 1; min-width: 160px; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px;
-    font-size: 15px; outline: none;
+    font-size: 15px; outline: none; background: var(--field); color: var(--text);
   }
   .add-row input[type="text"]:focus, .add-row input[type="password"]:focus { border-color: var(--primary); }
   .add-row select, .add-row .date-pick button {
     padding: 0 10px; border: 1px solid var(--border); border-radius: 10px;
-    font-size: 14px; background: #fff; color: var(--text); outline: none; cursor: pointer;
+    font-size: 14px; background: var(--field); color: var(--text); outline: none; cursor: pointer;
     height: 44px;
   }
   .btn {
@@ -166,20 +233,20 @@
   }
   .btn:hover { filter: brightness(1.08); }
   .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
-  .btn.ghost:hover { color: var(--text); background: #f0f2f7; }
+  .btn.ghost:hover { color: var(--text); background: var(--soft-hover); }
   .btn.small { padding: 6px 12px; font-size: 13px; height: auto; }
-  .btn.danger { color: var(--red); border-color: #f3cdcd; }
-  .btn.danger:hover { background: #fdf0f0; color: var(--red); }
+  .btn.danger { color: var(--red); border-color: var(--red-border); }
+  .btn.danger:hover { background: var(--red-soft); color: var(--red); }
   .manage-list li { display: flex; align-items: center; gap: 8px; padding: 10px 4px; border-bottom: 1px solid var(--border); list-style: none; flex-wrap: wrap; }
   .manage-list li:last-child { border-bottom: none; }
-  .drag-handle { cursor: grab; color: #c5cbda; font-size: 15px; padding: 2px 4px; user-select: none; flex-shrink: 0; }
+  .drag-handle { cursor: grab; color: var(--faint); font-size: 15px; padding: 2px 4px; user-select: none; flex-shrink: 0; }
   .drag-handle:hover { color: var(--muted); }
   .manage-list li.dragging { opacity: .45; background: var(--primary-soft); border-radius: 8px; }
   .manage-list .name { flex: 1; font-size: 15px; min-width: 120px; }
-  .manage-list .archived-tag { font-size: 11px; color: var(--muted); background: #eef0f5; padding: 2px 8px; border-radius: 99px; }
+  .manage-list .archived-tag { font-size: 11px; color: var(--muted); background: var(--soft); padding: 2px 8px; border-radius: 99px; }
   .date-mini {
     border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px;
-    font-size: 12.5px; color: var(--muted); background: #fff; outline: none;
+    font-size: 12.5px; color: var(--muted); background: var(--field); outline: none;
   }
   .date-mini:hover, .date-mini:focus { color: var(--text); border-color: var(--primary); }
   button.date-mini { cursor: pointer; font-family: inherit; }
@@ -191,6 +258,7 @@
   .threshold-row input {
     width: 56px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 8px;
     font-size: 14px; font-weight: 700; text-align: center; outline: none;
+    background: var(--field); color: var(--text);
   }
   .threshold-row input:focus { border-color: var(--primary); }
   .section-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin: 4px 0 8px; }
@@ -224,16 +292,17 @@
   .js-meta { font-size: 13.5px; color: var(--muted); line-height: 1.7; margin-top: 6px; }
   .js-meta b { color: var(--text); }
   .js-cp { display: flex; align-items: flex-start; gap: 12px; background: var(--primary-soft); border-radius: 10px; padding: 10px 12px; margin-top: 12px; font-size: 14px; line-height: 1.5; }
-  .js-cp.over { background: #fdf0f0; }
+  .js-cp.over { background: var(--red-soft); }
   .js-cp small { color: var(--muted); }
   .js-cp.over small { color: var(--red); font-weight: 600; }
-  .del-x { border: none; background: transparent; color: #c5cbda; font-size: 15px; cursor: pointer; padding: 2px 6px; flex-shrink: 0; }
+  .del-x { border: none; background: transparent; color: var(--faint); font-size: 15px; cursor: pointer; padding: 2px 6px; flex-shrink: 0; }
   .del-x:hover { color: var(--red); }
   .js-field { margin-bottom: 12px; }
   .js-field label { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
   .js-field textarea {
     width: 100%; min-height: 56px; padding: 10px 12px; border: 1px solid var(--border);
     border-radius: 10px; font-size: 14.5px; font-family: inherit; outline: none; resize: vertical; line-height: 1.5;
+    background: var(--field); color: var(--text);
   }
   .js-field textarea:focus { border-color: var(--primary); }
   .conf-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
@@ -293,6 +362,7 @@
     <div class="card">
       <div class="subtabs">
         <button data-mode="matrix">Bảng</button>
+        <button data-mode="year">Năm</button>
         <button data-mode="stats">Thống kê</button>
         <button data-mode="journal">Thành tựu</button>
       </div>
@@ -916,11 +986,13 @@ let calMonth = now.getMonth(); // 0-11
 let historyMode = 'matrix';    // matrix | stats
 
 document.getElementById('calPrev').onclick = () => {
-  calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; }
+  if (historyMode === 'year') calYear--;
+  else { calMonth--; if (calMonth < 0) { calMonth = 11; calYear--; } }
   renderHistory();
 };
 document.getElementById('calNext').onclick = () => {
-  calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (historyMode === 'year') calYear++;
+  else { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } }
   renderHistory();
 };
 for (const btn of document.querySelectorAll('.subtabs button')) {
@@ -929,6 +1001,7 @@ for (const btn of document.querySelectorAll('.subtabs button')) {
 
 const HINTS = {
   matrix: 'Bảng chỉ gồm việc hằng ngày. Bấm thẳng vào ô để tick / bỏ tick — sửa được mọi ngày từ ngày bắt đầu của việc. Việc một lần được liệt kê riêng bên dưới bảng, vẫn xem và tick được theo từng ngày.',
+  year: 'Mỗi ô là một ngày — càng đậm càng làm được nhiều việc hằng ngày, xanh đậm nhất là ngày đạt ngưỡng hoàn thành 🔥. Bấm vào ô để mở bảng tháng đó.',
   stats: 'Thống kê tính trên toàn bộ thời gian, từ ngày bắt đầu của từng việc đến hôm nay (việc một lần không tính).',
   journal: 'Nhật ký thành tựu theo ngày, mới nhất ở trên. Ghi thành tựu mới ở tab Hôm nay.',
 };
@@ -949,13 +1022,15 @@ function renderHistory() {
   for (const btn of document.querySelectorAll('.subtabs button')) {
     btn.classList.toggle('active', btn.dataset.mode === historyMode);
   }
-  document.getElementById('monthNav').classList.toggle('hidden', historyMode !== 'matrix');
-  document.getElementById('calTitle').textContent = `Tháng ${calMonth + 1}, ${calYear}`;
+  document.getElementById('monthNav').classList.toggle('hidden', historyMode !== 'matrix' && historyMode !== 'year');
+  document.getElementById('calTitle').textContent =
+    historyMode === 'year' ? `Năm ${calYear}` : `Tháng ${calMonth + 1}, ${calYear}`;
   document.getElementById('historyHint').textContent = HINTS[historyMode];
 
   const body = document.getElementById('historyBody');
   body.innerHTML = '';
   if (historyMode === 'matrix') renderMatrix(body);
+  else if (historyMode === 'year') renderYear(body);
   else if (historyMode === 'stats') renderStats(body);
   else renderJournal(body);
 }
@@ -1116,6 +1191,82 @@ function renderOnceSection(body, once) {
     ul.appendChild(li);
   }
   body.appendChild(ul);
+}
+
+/* ===== Heatmap cả năm: mỗi ô một ngày, đậm dần theo mức hoàn thành ===== */
+function renderYear(body) {
+  const tKey = todayKey();
+  const jan1 = new Date(calYear, 0, 1);
+  const offset = (jan1.getDay() + 6) % 7; // cột xếp từ thứ hai
+  const COL = 15; // 12px ô + 3px khe
+  let activeDays = 0, fullDays = 0;
+
+  const grid = document.createElement('div');
+  grid.className = 'year-grid';
+  for (let i = 0; i < offset; i++) {
+    const blank = document.createElement('i');
+    blank.className = 'yr-cell na';
+    grid.appendChild(blank);
+  }
+
+  const d = new Date(jan1);
+  while (d.getFullYear() === calYear) {
+    const key = dateKey(d);
+    const cell = document.createElement('i');
+    cell.className = 'yr-cell';
+    const total = dailyTasksForDay(key).length;
+    if (key > tKey) {
+      cell.classList.add('future');
+    } else if (total === 0) {
+      cell.classList.add('na');
+      cell.title = formatVN(key) + ' — chưa theo dõi';
+    } else {
+      activeDays++;
+      const done = dailyDoneCount(key);
+      const full = dailyComplete(key);
+      if (full) fullDays++;
+      // Mức màu: đạt ngưỡng hoàn thành = đậm nhất, còn lại chia 3 mức theo tỉ lệ
+      const level = full ? 4 : done === 0 ? 0 : Math.min(3, Math.ceil(done / total * 3));
+      if (level) cell.classList.add('l' + level);
+      cell.classList.add('click');
+      cell.title = `${formatVN(key)} — ${done}/${total} việc${full ? ' · đạt ✓' : ''}`;
+      const month = d.getMonth();
+      cell.onclick = () => { calMonth = month; historyMode = 'matrix'; renderHistory(); };
+    }
+    grid.appendChild(cell);
+    d.setDate(d.getDate() + 1);
+  }
+
+  // Nhãn tháng T1–T12 canh theo cột tuần chứa ngày đầu tháng
+  const months = document.createElement('div');
+  months.className = 'year-months';
+  for (let m = 0; m < 12; m++) {
+    const dayIdx = offset + Math.round((new Date(calYear, m, 1) - jan1) / 86400000);
+    const span = document.createElement('span');
+    span.style.left = Math.floor(dayIdx / 7) * COL + 'px';
+    span.textContent = 'T' + (m + 1);
+    months.appendChild(span);
+  }
+
+  const summary = document.createElement('div');
+  summary.className = 'year-summary';
+  summary.innerHTML = activeDays
+    ? `Năm ${calYear}: đạt ngưỡng hoàn thành <b>${fullDays}</b>/<b>${activeDays}</b> ngày có việc (<b>${Math.round(fullDays / activeDays * 100)}%</b>)`
+    : `Năm ${calYear} chưa có dữ liệu.`;
+  body.appendChild(summary);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'year-wrap';
+  const inner = document.createElement('div');
+  inner.style.width = 'max-content';
+  inner.append(months, grid);
+  wrap.appendChild(inner);
+  body.appendChild(wrap);
+
+  const legend = document.createElement('div');
+  legend.className = 'year-legend';
+  legend.innerHTML = 'Ít <i class="yr-cell"></i><i class="yr-cell l1"></i><i class="yr-cell l2"></i><i class="yr-cell l3"></i><i class="yr-cell l4"></i> Nhiều';
+  body.appendChild(legend);
 }
 
 /* ===== Thống kê từng việc (toàn bộ thời gian, chỉ việc hằng ngày) ===== */
@@ -1521,7 +1672,7 @@ function renderManage() {
     if (isDone(dk, t.id)) {
       status.className = 'archived-tag';
       status.style.background = 'var(--green-soft)';
-      status.style.color = '#1d7a4d';
+      status.style.color = 'var(--green)';
       status.textContent = '✓ đã làm';
     } else if (dk < todayKey()) {
       status.className = 'archived-tag';
