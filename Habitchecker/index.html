@@ -146,11 +146,11 @@
 
   /* ===== Quản lý công việc ===== */
   .add-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-  .add-row input[type="text"] {
+  .add-row input[type="text"], .add-row input[type="password"] {
     flex: 1; min-width: 160px; padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px;
     font-size: 15px; outline: none;
   }
-  .add-row input[type="text"]:focus { border-color: var(--primary); }
+  .add-row input[type="text"]:focus, .add-row input[type="password"]:focus { border-color: var(--primary); }
   .add-row select, .add-row .date-pick button {
     padding: 0 10px; border: 1px solid var(--border); border-radius: 10px;
     font-size: 14px; background: #fff; color: var(--text); outline: none; cursor: pointer;
@@ -339,17 +339,30 @@
       </div>
 
       <div class="section-title" style="margin-top:16px">Dữ liệu 💾</div>
-      <div class="add-row" style="margin-bottom:0">
+      <div class="add-row">
         <button class="btn ghost" id="exportBtn">⬇ Xuất file sao lưu</button>
         <button class="btn ghost" id="importBtn">⬆ Nhập từ file</button>
         <input type="file" id="importFile" accept=".json,application/json" class="hidden">
+      </div>
+
+      <div class="section-title" style="margin-top:16px">Đồng bộ online ☁️</div>
+      <div class="add-row" id="syncSetupRow">
+        <input id="gistTokenInput" type="password" placeholder="GitHub token (quyền gist)" autocomplete="off">
+        <input id="gistIdInput" type="text" placeholder="Gist ID (thường bỏ trống)" style="flex:0 1 200px; min-width:140px">
+        <button class="btn" id="syncConnectBtn">Kết nối</button>
+      </div>
+      <div class="add-row hidden" id="syncStatusRow" style="margin-bottom:0; align-items:center">
+        <span id="syncStatus" class="date-label" style="flex:1; font-size:13px">☁️ Đang bật đồng bộ</span>
+        <button class="btn ghost" id="syncNowBtn">Đồng bộ ngay</button>
+        <button class="btn ghost danger" id="syncDisconnectBtn">Ngắt</button>
       </div>
 
       <p class="hint">💡 Kéo tay nắm <b>⠿</b> để đổi thứ tự — thứ tự này áp dụng cho cả tab Hôm nay và Lịch sử.<br>
       💡 <b>Lưu trữ</b> sẽ ẩn việc khỏi danh sách hằng ngày nhưng vẫn giữ nguyên lịch sử các ngày đã làm trước đó. <b>Xóa</b> mới mất hẳn cả lịch sử.<br>
       💡 Việc chỉ được tính từ <b>ngày bắt đầu</b> — muốn tick cho những ngày sớm hơn, hãy lùi ngày bắt đầu lại bằng ô ngày bên cạnh tên việc.<br>
       💡 <b>Việc một lần</b> chỉ xuất hiện đúng ngày bạn chọn, không tính vào chuỗi/thống kê dài hạn.<br>
-      💡 <b>Xuất file sao lưu</b> để chuyển dữ liệu sang máy/điện thoại khác: xuất ở máy này, gửi file qua (Zalo, email...), rồi <b>Nhập từ file</b> ở máy kia — dữ liệu tab <b>Học JS</b> cũng nằm trong file này.</p>
+      💡 <b>Xuất file sao lưu</b> để chuyển dữ liệu sang máy/điện thoại khác: xuất ở máy này, gửi file qua (Zalo, email...), rồi <b>Nhập từ file</b> ở máy kia — dữ liệu tab <b>Học JS</b> cũng nằm trong file này.<br>
+      💡 <b>Đồng bộ online</b>: dữ liệu được lưu vào một Gist bí mật trên tài khoản GitHub của bạn, mở app là tự tải bản mới nhất về. Tạo token tại <b>GitHub → Settings → Developer settings → Personal access tokens (classic)</b>, chỉ tick quyền <b>gist</b>. Trên máy khác chỉ cần dán đúng token đó rồi bấm Kết nối — app tự tìm ra dữ liệu, không cần nhớ Gist ID. Nếu hai máy cùng sửa khi offline thì bản lưu <b>sau</b> sẽ thắng.</p>
     </div>
   </section>
 
@@ -416,13 +429,222 @@ function load() {
   } catch (e) { /* dữ liệu hỏng thì bắt đầu mới */ }
   return { tasks: [], records: {} };
 }
-function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+function save() {
+  state.updatedAt = Date.now(); // để so bản trên máy với bản online, bản mới hơn thắng
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  scheduleSyncPush();
+}
 
 const state = load();
 // Ngưỡng hoàn thành ngày: làm ít nhất n việc là ngày đó tính hoàn thành (0 = phải đủ tất cả)
 if (typeof state.minDone !== 'number') state.minDone = 3;
 // Thành tựu: mảng [{ id, date: 'YYYY-MM-DD', text }] — nhiều thành tựu mỗi ngày
 state.achievements = toAchievementArray(state.achievements);
+
+/* ================= Đồng bộ online qua GitHub Gist =================
+   Dữ liệu để trong một Gist secret trên tài khoản GitHub của người dùng.
+   Token + Gist ID lưu riêng từng máy (không nằm trong state, nên không
+   lọt vào file sao lưu). Mở app thì kéo bản online về nếu mới hơn;
+   mỗi lần save() thì đẩy lên sau một nhịp debounce. */
+const SYNC_KEY = 'habitchecker-sync-v1';
+const GIST_FILE = 'habitchecker.json';
+const GIST_API = 'https://api.github.com/gists';
+
+let syncConfig = (() => {
+  try { return JSON.parse(localStorage.getItem(SYNC_KEY)); } catch (e) { return null; }
+})();
+let syncReady = false;  // chỉ tự đẩy lên sau khi đã đối chiếu với bản online lúc mở app
+let syncBusy = false;
+let syncDirty = false;
+let syncTimer = null;
+
+function saveSyncConfig() {
+  if (syncConfig) localStorage.setItem(SYNC_KEY, JSON.stringify(syncConfig));
+  else localStorage.removeItem(SYNC_KEY);
+}
+function gistHeaders(token) {
+  return {
+    'Authorization': 'Bearer ' + (token || syncConfig.token),
+    'Accept': 'application/vnd.github+json',
+    'Content-Type': 'application/json',
+  };
+}
+function setSyncStatus(text, isError) {
+  const el = document.getElementById('syncStatus');
+  el.textContent = text;
+  el.style.color = isError ? 'var(--red)' : '';
+}
+function updateSyncUI() {
+  document.getElementById('syncSetupRow').classList.toggle('hidden', !!syncConfig);
+  document.getElementById('syncStatusRow').classList.toggle('hidden', !syncConfig);
+}
+
+async function gistPull() {
+  const res = await fetch(`${GIST_API}/${syncConfig.gistId}`, { headers: gistHeaders() });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const gist = await res.json();
+  const f = gist.files && gist.files[GIST_FILE];
+  if (!f) return null;
+  // Gist trả nội dung bị cắt nếu file > 1MB — khi đó tải qua raw_url
+  const content = f.truncated ? await (await fetch(f.raw_url)).text() : f.content;
+  try { return JSON.parse(content); } catch (e) { return null; }
+}
+async function gistPush() {
+  const res = await fetch(`${GIST_API}/${syncConfig.gistId}`, {
+    method: 'PATCH',
+    headers: gistHeaders(),
+    body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(state) } } }),
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+}
+
+/* Thay dữ liệu trên máy bằng bản online — ghi thẳng localStorage,
+   không qua save() để giữ nguyên updatedAt của bản online */
+function applyRemoteState(data) {
+  state.tasks = Array.isArray(data.tasks) ? data.tasks : [];
+  state.records = (data.records && typeof data.records === 'object') ? data.records : {};
+  state.minDone = typeof data.minDone === 'number' ? data.minDone : 3;
+  state.achievements = toAchievementArray(data.achievements);
+  state.js = normalizeJsState(data.js);
+  state.updatedAt = data.updatedAt || Date.now();
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+  render();
+}
+
+function scheduleSyncPush() {
+  if (!syncConfig) return;
+  syncDirty = true;
+  if (!syncReady) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncPushNow, 1500);
+}
+async function syncPushNow() {
+  if (!syncConfig || syncBusy) return;
+  syncBusy = true;
+  syncDirty = false;
+  setSyncStatus('Đang lưu online…');
+  let failed = false;
+  try {
+    await gistPush();
+    setSyncStatus('☁️ Đã đồng bộ lúc ' + new Date().toLocaleTimeString('vi-VN'));
+  } catch (e) {
+    failed = true;
+    syncDirty = true;
+    setSyncStatus('⚠ Chưa lưu được online — sẽ tự thử lại', true);
+  }
+  syncBusy = false;
+  // Có thay đổi mới trong lúc đang đẩy, hoặc đẩy hỏng thì hẹn thử lại
+  if (syncDirty) {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncPushNow, failed ? 30000 : 1500);
+  }
+}
+
+/* Đối chiếu 2 chiều: bản nào mới hơn thì thắng */
+async function syncReconcile() {
+  if (!syncConfig) return;
+  setSyncStatus('Đang đồng bộ…');
+  try {
+    const remote = await gistPull();
+    const remoteAt = (remote && remote.updatedAt) || 0;
+    const localAt = state.updatedAt || 0;
+    syncReady = true;
+    if (remote && remoteAt > localAt) {
+      applyRemoteState(remote);
+      syncDirty = false;
+      setSyncStatus('☁️ Đã tải bản mới nhất từ online');
+    } else if (localAt > remoteAt || syncDirty) {
+      syncPushNow();
+    } else {
+      setSyncStatus('☁️ Dữ liệu đã khớp với bản online');
+    }
+  } catch (e) {
+    syncReady = true; // offline thì vẫn dùng bản trên máy, có mạng lại sẽ đẩy lên
+    setSyncStatus('⚠ Không nối được online — đang dùng bản trên máy', true);
+  }
+}
+
+document.getElementById('syncConnectBtn').onclick = async () => {
+  const tokenInput = document.getElementById('gistTokenInput');
+  const idInput = document.getElementById('gistIdInput');
+  const token = tokenInput.value.trim();
+  let gistId = idInput.value.trim();
+  if (!token) { alert('Dán GitHub token (có quyền gist) vào ô trước đã.'); return; }
+  const btn = document.getElementById('syncConnectBtn');
+  btn.disabled = true;
+  btn.textContent = 'Đang kết nối…';
+  try {
+    const headers = gistHeaders(token);
+    if (!gistId) {
+      // Tự tìm gist Habit Checker có sẵn trên tài khoản — máy thứ hai không cần nhớ ID
+      const res = await fetch(GIST_API + '?per_page=100', { headers });
+      if (!res.ok) throw new Error(res.status === 401 ? 'token không hợp lệ' : 'HTTP ' + res.status);
+      const found = (await res.json()).find(g => g.files && g.files[GIST_FILE]);
+      if (found) gistId = found.id;
+    }
+    if (gistId) {
+      syncConfig = { token, gistId };
+      const remote = await gistPull();
+      const hasRemote = remote && ((remote.tasks || []).length > 0 || (remote.achievements || []).length > 0);
+      const hasLocal = state.tasks.length > 0 || state.achievements.length > 0;
+      if (hasRemote && (!hasLocal ||
+          confirm('Trên Gist đã có dữ liệu Habit Checker.\n\nOK — tải dữ liệu online về, THAY dữ liệu máy này\nCancel — giữ dữ liệu máy này, ghi đè lên bản online'))) {
+        applyRemoteState(remote);
+        syncDirty = false;
+      } else {
+        syncDirty = true;
+      }
+    } else {
+      // Chưa có thì tạo gist secret mới chứa dữ liệu hiện tại
+      const res = await fetch(GIST_API, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          description: 'Habit Checker — dữ liệu đồng bộ',
+          public: false,
+          files: { [GIST_FILE]: { content: JSON.stringify(state) } },
+        }),
+      });
+      if (!res.ok) throw new Error(res.status === 401 ? 'token không hợp lệ' : 'HTTP ' + res.status);
+      syncConfig = { token, gistId: (await res.json()).id };
+      syncDirty = false;
+    }
+    saveSyncConfig();
+    syncReady = true;
+    updateSyncUI();
+    tokenInput.value = '';
+    idInput.value = '';
+    if (syncDirty) syncPushNow();
+    else setSyncStatus('☁️ Đã kết nối và đồng bộ');
+  } catch (e) {
+    syncConfig = null;
+    alert('Không kết nối được: ' + e.message + '\nKiểm tra lại token (cần quyền "gist") và mạng.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Kết nối';
+  }
+};
+
+document.getElementById('syncNowBtn').onclick = syncReconcile;
+
+document.getElementById('syncDisconnectBtn').onclick = () => {
+  if (!confirm('Ngắt đồng bộ trên máy này?\nDữ liệu trên máy và trên Gist đều được giữ nguyên.')) return;
+  syncConfig = null;
+  saveSyncConfig();
+  syncReady = false;
+  updateSyncUI();
+};
+
+// Đóng tab khi còn thay đổi chưa kịp đẩy lên thì đẩy nốt
+window.addEventListener('pagehide', () => {
+  if (!syncConfig || !syncDirty || !syncReady) return;
+  fetch(`${GIST_API}/${syncConfig.gistId}`, {
+    method: 'PATCH',
+    headers: gistHeaders(),
+    keepalive: true,
+    body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(state) } } }),
+  });
+});
 
 /* ================= Tiện ích ngày tháng ================= */
 function dateKey(d) {
@@ -1783,6 +2005,8 @@ function render() {
 }
 
 render();
+updateSyncUI();
+syncReconcile();
 </script>
 </body>
 </html>
