@@ -8,5 +8,6 @@
 - **Ngưỡng (minDone)** — số việc tối thiểu để một ngày tính là hoàn thành; `0` nghĩa là phải đủ tất cả việc hằng ngày của ngày đó.
 - **Ngày hoàn thành (Day complete)** — *(quyết định 08/07/2026, grilling candidate habit-model)*: mẫu số (`total`) và ngưỡng chỉ tính trên **việc hằng ngày**; việc một lần đã tick **"chỉ cộng, không trừ"** — cộng vào số việc đã làm (`done`) nhưng không làm tăng ngưỡng. Định nghĩa này dùng thống nhất ở mọi nơi: chuỗi, heatmap Năm, hàng Tổng của Bảng. Ngày không có việc hằng ngày có hiệu lực (trong thực tế chỉ là những ngày trước khi bắt đầu theo dõi) → không tính hoàn thành, chuỗi dừng đếm tại đó. Số `done` hiển thị (hàng Tổng, tooltip heatmap) là số gộp — có thể vượt `total`, ví dụ `5/3`.
 - **Chuỗi (Streak)** — số ngày hoàn thành liên tiếp, đếm lùi từ hôm nay; hôm nay chưa đạt thì đếm lùi từ hôm qua.
+- **Mức đậm heatmap (Heat level)** — *(quyết định 08/07/2026)*: mức 4 (đậm nhất) = **trọn vẹn**, tick đủ 100% việc hằng ngày (`dailyDone === total` — việc một lần không thế chỗ được); mức 3 = đạt ngưỡng hoàn thành (giữ chuỗi); mức 1–2 = chưa đạt, theo tiến độ tới ngưỡng; mức 0 = chưa tick gì.
 - **Thành tựu (Achievement)** — ghi chú tự do theo ngày, độc lập với Việc/Tick.
 - **habit-model** — module domain thói quen đang được tách ra (`Habitchecker/habit-model.js`, ES module, hàm thuần nhận `state` tường minh).

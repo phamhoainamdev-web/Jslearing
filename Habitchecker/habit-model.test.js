@@ -56,7 +56,7 @@ test('dayStats: đạt ngưỡng minDone thì hoàn thành', () => {
     minDone: 3,
   });
   assert.deepEqual(dayStats(state, '2026-07-08'),
-    { total: 4, done: 2, threshold: 3, complete: false });
+    { total: 4, done: 2, dailyDone: 2, threshold: 3, complete: false });
   state.records['2026-07-08'].c = true;
   assert.equal(dayStats(state, '2026-07-08').complete, true);
 });
@@ -68,7 +68,7 @@ test('dayStats: minDone=0 nghĩa là phải đủ tất cả việc hằng ngày
     minDone: 0,
   });
   assert.deepEqual(dayStats(state, '2026-07-08'),
-    { total: 2, done: 1, threshold: 2, complete: false });
+    { total: 2, done: 1, dailyDone: 1, threshold: 2, complete: false });
 });
 
 test('dayStats: việc một lần đã tick chỉ cộng vào done, không tăng ngưỡng', () => {
@@ -80,7 +80,7 @@ test('dayStats: việc một lần đã tick chỉ cộng vào done, không tăn
     minDone: 3,
   });
   assert.deepEqual(dayStats(state, '2026-07-08'),
-    { total: 2, done: 2, threshold: 2, complete: true });
+    { total: 2, done: 2, dailyDone: 1, threshold: 2, complete: true });
 });
 
 test('dayStats: việc một lần CHƯA tick không làm ngày khó đạt hơn', () => {
@@ -100,7 +100,7 @@ test('dayStats: done có thể vượt total (5/3)', () => {
     minDone: 3,
   });
   assert.deepEqual(dayStats(state, '2026-07-08'),
-    { total: 3, done: 5, threshold: 3, complete: true });
+    { total: 3, done: 5, dailyDone: 3, threshold: 3, complete: true });
 });
 
 test('dayStats: ngày không có việc hằng ngày → không hoàn thành, kể cả có tick một lần', () => {
@@ -110,7 +110,24 @@ test('dayStats: ngày không có việc hằng ngày → không hoàn thành, k�
     minDone: 3,
   });
   assert.deepEqual(dayStats(state, '2026-07-08'),
-    { total: 0, done: 1, threshold: 0, complete: false });
+    { total: 0, done: 1, dailyDone: 0, threshold: 0, complete: false });
+});
+
+test('dayStats: dailyDone phân biệt ngày "đạt ngưỡng" với ngày "trọn vẹn"', () => {
+  // 9 việc hằng ngày, ngưỡng 3, tick 3 → đạt ngưỡng nhưng CHƯA trọn vẹn
+  const tasks = 'abcdefghi'.split('').map(id => daily(id, '2026-07-01'));
+  const state = makeState({
+    tasks,
+    records: { '2026-07-08': { a: true, b: true, c: true } },
+    minDone: 3,
+  });
+  let s = dayStats(state, '2026-07-08');
+  assert.equal(s.complete, true);
+  assert.equal(s.dailyDone < s.total, true); // heatmap: mức 3, không phải 4
+  // tick đủ cả 9 → trọn vẹn
+  for (const t of tasks) state.records['2026-07-08'][t.id] = true;
+  s = dayStats(state, '2026-07-08');
+  assert.equal(s.dailyDone, s.total); // heatmap: mức 4
 });
 
 /* ===== currentStreak ===== */
