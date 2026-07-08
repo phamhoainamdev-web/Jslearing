@@ -481,8 +481,11 @@
   </section>
 </div>
 
-<script>
-'use strict';
+<script type="module">
+import {
+  dateKey, keyToDate, isOnce, onceDate, isActive, tasksFor, isDone,
+  dayStats, currentStreak, taskStreaks, tasksForMonth,
+} from './habit-model.js';
 
 /* ================= Dữ liệu =================
    tasks: [{
@@ -729,20 +732,12 @@ window.addEventListener('pagehide', () => {
   });
 });
 
-/* ================= Tiện ích ngày tháng ================= */
-function dateKey(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
+/* ================= Tiện ích ngày tháng =================
+   (toán ngày dateKey/keyToDate nằm trong habit-model.js — ở đây chỉ còn
+   "hôm nay" và các hàm format tiếng Việt cho phần hiển thị) */
 function todayKey() { return dateKey(new Date()); }
 const DOWS_FULL = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
 const DOWS_SHORT = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-function keyToDate(key) {
-  const [y, m, d] = key.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
 function formatVN(key) {
   const dt = keyToDate(key);
   return `${DOWS_FULL[dt.getDay()]}, ${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear()}`;
@@ -756,70 +751,16 @@ function formatDMY(key) {
   return `${d}/${m}/${y}`;
 }
 
-/* ================= Logic công việc ================= */
-function isOnce(t) { return t.repeat === 'once'; }
-function onceDate(t) { return t.date || t.createdAt; }
-
-/* Một việc có hiệu lực vào một ngày hay không */
-function isActive(t, key) {
-  if (isOnce(t)) return key === onceDate(t);
-  return t.createdAt <= key && (!t.archivedAt || key < t.archivedAt);
-}
-function tasksForDay(key) {
-  return state.tasks.filter(t => isActive(t, key));
-}
-function isDone(key, taskId) {
-  return !!(state.records[key] && state.records[key][taskId]);
-}
-function doneCount(key) {
-  return tasksForDay(key).filter(t => isDone(key, t.id)).length;
-}
+/* ================= Logic công việc =================
+   Toàn bộ logic domain (việc nào có hiệu lực ngày nào, ngày hoàn thành,
+   chuỗi, thống kê tháng) nằm trong habit-model.js — xem CONTEXT.md.
+   Ở đây chỉ còn mutation, sẽ gom về store sau. */
 function toggleTask(key, taskId) {
   if (!state.records[key]) state.records[key] = {};
   if (state.records[key][taskId]) delete state.records[key][taskId];
   else state.records[key][taskId] = true;
   if (Object.keys(state.records[key]).length === 0) delete state.records[key];
   save();
-}
-
-/* Số việc tối thiểu để một ngày tính là hoàn thành */
-function dayThreshold(total) {
-  return state.minDone > 0 ? Math.min(state.minDone, total) : total;
-}
-function dayComplete(key) {
-  const total = tasksForDay(key).length;
-  if (total === 0) return false;
-  return doneCount(key) >= dayThreshold(total);
-}
-
-/* Cùng logic nhưng chỉ tính việc hằng ngày — dùng cho bảng Lịch sử,
-   để việc một lần không lẫn vào số liệu của bảng */
-function dailyTasksForDay(key) {
-  return state.tasks.filter(t => !isOnce(t) && isActive(t, key));
-}
-function dailyDoneCount(key) {
-  return dailyTasksForDay(key).filter(t => isDone(key, t.id)).length;
-}
-function dailyComplete(key) {
-  const total = dailyTasksForDay(key).length;
-  if (total === 0) return false;
-  return dailyDoneCount(key) >= dayThreshold(total);
-}
-
-/* Chuỗi ngày hoàn thành liên tiếp, tính lùi từ hôm nay
-   (hôm nay chưa đạt thì tính lùi từ hôm qua) */
-function currentStreak() {
-  let streak = 0;
-  const d = new Date();
-  if (dayComplete(todayKey())) streak++;
-  d.setDate(d.getDate() - 1);
-  for (let i = 0; i < 3650; i++) {
-    const key = dateKey(d);
-    if (tasksForDay(key).length === 0) break;
-    if (dayComplete(key)) { streak++; d.setDate(d.getDate() - 1); }
-    else break;
-  }
-  return streak;
 }
 
 /* ================= Thành tựu mỗi ngày ================= */
@@ -887,7 +828,7 @@ document.getElementById('tab-manage').onclick = () => switchTab('manage');
 /* ================= Tab Hôm nay ================= */
 function renderToday() {
   const key = todayKey();
-  const tasks = tasksForDay(key);
+  const tasks = tasksFor(state, key);
   const list = document.getElementById('todayList');
   list.innerHTML = '';
 
@@ -896,7 +837,7 @@ function renderToday() {
   }
 
   for (const t of tasks) {
-    const done = isDone(key, t.id);
+    const done = isDone(state, key, t.id);
     const li = document.createElement('li');
     if (done) li.className = 'done';
     const cb = document.createElement('div');
@@ -918,21 +859,22 @@ function renderToday() {
     list.appendChild(li);
   }
 
-  const done = doneCount(key);
+  // Thanh tiến độ đo danh sách hôm nay (kể cả việc một lần);
+  // chuỗi thì theo định nghĩa "ngày hoàn thành" trong habit-model
+  const stats = dayStats(state, key);
   const total = tasks.length;
-  const pct = total ? Math.round(done / total * 100) : 0;
+  const pct = total ? Math.round(stats.done / total * 100) : 0;
   document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('progressLabel').textContent = `${done}/${total}`;
+  document.getElementById('progressLabel').textContent = `${stats.done}/${total}`;
 
-  const streak = currentStreak();
-  const thr = total > 0 ? dayThreshold(total) : 0;
+  const streak = currentStreak(state, key);
   if (streak > 0) {
     document.getElementById('streakLabel').innerHTML =
       `🔥 Chuỗi hoàn thành: <b>${streak} ngày</b> liên tiếp` +
-      (total > 0 && !dayComplete(key) ? ` — hôm nay cần ít nhất ${thr}/${total} việc để giữ chuỗi` : '');
+      (stats.total > 0 && !stats.complete ? ` — hôm nay cần ít nhất ${stats.threshold}/${stats.total} việc để giữ chuỗi` : '');
   } else {
-    document.getElementById('streakLabel').innerHTML = total > 0
-      ? `Làm ít nhất <b>${thr}/${total}</b> việc hôm nay để bắt đầu chuỗi 🔥`
+    document.getElementById('streakLabel').innerHTML = stats.total > 0
+      ? `Làm ít nhất <b>${stats.threshold}/${stats.total}</b> việc hôm nay để bắt đầu chuỗi 🔥`
       : 'Hoàn thành việc mỗi ngày để xây chuỗi 🔥';
   }
 
@@ -1006,18 +948,6 @@ const HINTS = {
   journal: 'Nhật ký thành tựu theo ngày, mới nhất ở trên. Ghi thành tựu mới ở tab Hôm nay.',
 };
 
-/* Các việc xuất hiện trong tháng đang xem (kể cả đã lưu trữ giữa chừng) */
-function tasksForMonth() {
-  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-  const monthStart = dateKey(new Date(calYear, calMonth, 1));
-  const monthEnd = dateKey(new Date(calYear, calMonth, daysInMonth));
-  const daily = state.tasks.filter(t => !isOnce(t) &&
-    t.createdAt <= monthEnd && (!t.archivedAt || t.archivedAt > monthStart));
-  const once = state.tasks.filter(t => isOnce(t) &&
-    onceDate(t) >= monthStart && onceDate(t) <= monthEnd);
-  return [...daily, ...once];
-}
-
 function renderHistory() {
   for (const btn of document.querySelectorAll('.subtabs button')) {
     btn.classList.toggle('active', btn.dataset.mode === historyMode);
@@ -1041,7 +971,7 @@ function emptyMonthMsg(body) {
 
 /* ===== Bảng lưới: việc hằng ngày × ngày (việc một lần tách riêng bên dưới) ===== */
 function renderMatrix(body) {
-  const monthTasks = tasksForMonth();
+  const monthTasks = tasksForMonth(state, calYear, calMonth);
   const daily = monthTasks.filter(t => !isOnce(t));
   const once = monthTasks.filter(isOnce);
   if (daily.length === 0 && once.length === 0) return emptyMonthMsg(body);
@@ -1105,7 +1035,7 @@ function renderDailyMatrix(body, tasks) {
         cell.className = 'm-cell future';
       } else {
         activeDays++;
-        const done = isDone(key, t.id);
+        const done = isDone(state, key, t.id);
         if (done) doneDays++;
         cell.className = 'm-cell ' + (done ? 'on' : 'off');
         cell.textContent = done ? '✓' : '·';
@@ -1135,10 +1065,10 @@ function renderDailyMatrix(body, tasks) {
     const key = dateKey(new Date(calYear, calMonth, day));
     const td = document.createElement('td');
     if (key === tKey) td.className = 'today-col';
-    const total = dailyTasksForDay(key).length;
-    if (key <= tKey && total > 0) {
-      td.textContent = `${dailyDoneCount(key)}/${total}`;
-      if (dailyComplete(key)) td.classList.add('full');
+    const s = dayStats(state, key);
+    if (key <= tKey && s.total > 0) {
+      td.textContent = `${s.done}/${s.total}`;
+      if (s.complete) td.classList.add('full');
     }
     fr.appendChild(td);
   }
@@ -1171,7 +1101,7 @@ function renderOnceSection(body, once) {
     if (key > tKey) {
       cell.className = 'm-cell future';
     } else {
-      const done = isDone(key, t.id);
+      const done = isDone(state, key, t.id);
       cell.className = 'm-cell ' + (done ? 'on' : 'off');
       cell.textContent = done ? '✓' : '·';
       cell.title = `${t.name} — ${formatVN(key)}`;
@@ -1214,22 +1144,21 @@ function renderYear(body) {
     const key = dateKey(d);
     const cell = document.createElement('i');
     cell.className = 'yr-cell';
-    const total = dailyTasksForDay(key).length;
+    const s = dayStats(state, key);
     if (key > tKey) {
       cell.classList.add('future');
-    } else if (total === 0) {
+    } else if (s.total === 0) {
       cell.classList.add('na');
       cell.title = formatVN(key) + ' — chưa theo dõi';
     } else {
       activeDays++;
-      const done = dailyDoneCount(key);
-      const full = dailyComplete(key);
-      if (full) fullDays++;
-      // Mức màu: đạt ngưỡng hoàn thành = đậm nhất, còn lại chia 3 mức theo tỉ lệ
-      const level = full ? 4 : done === 0 ? 0 : Math.min(3, Math.ceil(done / total * 3));
+      if (s.complete) fullDays++;
+      // Mức màu: đạt ngưỡng hoàn thành = đậm nhất, còn lại chia 3 mức
+      // theo tiến độ so với ngưỡng (không phải so với tổng số việc)
+      const level = s.complete ? 4 : s.done === 0 ? 0 : Math.min(3, Math.ceil(s.done / s.threshold * 3));
       if (level) cell.classList.add('l' + level);
       cell.classList.add('click');
-      cell.title = `${formatVN(key)} — ${done}/${total} việc${full ? ' · đạt ✓' : ''}`;
+      cell.title = `${formatVN(key)} — ${s.done}/${s.total} việc${s.complete ? ' · đạt ✓' : ''}`;
       const month = d.getMonth();
       cell.onclick = () => { calMonth = month; historyMode = 'matrix'; renderHistory(); };
     }
@@ -1270,31 +1199,6 @@ function renderYear(body) {
 }
 
 /* ===== Thống kê từng việc (toàn bộ thời gian, chỉ việc hằng ngày) ===== */
-function taskStreaks(t) {
-  const tKey = todayKey();
-  // Chuỗi hiện tại: lùi từ hôm nay (hôm nay chưa tick thì lùi từ hôm qua)
-  let current = 0;
-  const d = new Date();
-  if (isActive(t, tKey) && isDone(tKey, t.id)) current++;
-  d.setDate(d.getDate() - 1);
-  for (let i = 0; i < 3650; i++) {
-    const key = dateKey(d);
-    if (!isActive(t, key)) break;
-    if (isDone(key, t.id)) { current++; d.setDate(d.getDate() - 1); }
-    else break;
-  }
-  // Chuỗi dài nhất: duyệt từ ngày bắt đầu đến hôm nay
-  let longest = 0, run = 0;
-  const it = keyToDate(t.createdAt);
-  while (dateKey(it) <= tKey) {
-    const key = dateKey(it);
-    if (isActive(t, key) && isDone(key, t.id)) { run++; if (run > longest) longest = run; }
-    else run = 0;
-    it.setDate(it.getDate() + 1);
-  }
-  return { current, longest };
-}
-
 function renderStats(body) {
   const tasks = state.tasks.filter(t => !isOnce(t) && !t.archivedAt);
   if (tasks.length === 0) return emptyMonthMsg(body);
@@ -1319,13 +1223,13 @@ function renderStats(body) {
         sq.className = 'na';
       } else {
         activeDays++;
-        if (isDone(key, t.id)) { doneDays++; sq.className = 'on'; }
+        if (isDone(state, key, t.id)) { doneDays++; sq.className = 'on'; }
       }
-      sq.title = `${formatVN(key)}: ${!isActive(t, key) ? 'chưa theo dõi' : (isDone(key, t.id) ? 'đã làm ✓' : 'chưa làm')}`;
+      sq.title = `${formatVN(key)}: ${!isActive(t, key) ? 'chưa theo dõi' : (isDone(state, key, t.id) ? 'đã làm ✓' : 'chưa làm')}`;
       strip.appendChild(sq);
     }
     const pct = activeDays ? Math.round(doneDays / activeDays * 100) : 0;
-    const { current, longest } = taskStreaks(t);
+    const { current, longest } = taskStreaks(state, t, tKey);
 
     const item = document.createElement('div');
     item.className = 'stat-item';
@@ -1616,7 +1520,7 @@ function renderManage() {
   // khỏi danh sách (vẫn xem lại được trong Lịch sử); việc chưa làm thì hiện mãi
   const thisMonth = todayKey().slice(0, 7);
   const once = state.tasks
-    .filter(t => isOnce(t) && !(isDone(onceDate(t), t.id) && onceDate(t).slice(0, 7) < thisMonth))
+    .filter(t => isOnce(t) && !(isDone(state, onceDate(t), t.id) && onceDate(t).slice(0, 7) < thisMonth))
     .sort((a, b) => onceDate(b) < onceDate(a) ? -1 : 1);
   const archived = state.tasks.filter(t => !isOnce(t) && t.archivedAt);
 
@@ -1669,7 +1573,7 @@ function renderManage() {
 
     const status = document.createElement('span');
     const dk = onceDate(t);
-    if (isDone(dk, t.id)) {
+    if (isDone(state, dk, t.id)) {
       status.className = 'archived-tag';
       status.style.background = 'var(--green-soft)';
       status.style.color = 'var(--green)';
@@ -1681,7 +1585,7 @@ function renderManage() {
 
     // Chuyển cả dấu tick (nếu có) sang ngày mới
     const dayPick = makeDatePicker(dk, 'Đổi ngày của việc này', v => {
-      const wasDone = isDone(dk, t.id);
+      const wasDone = isDone(state, dk, t.id);
       if (wasDone) toggleTask(dk, t.id);
       t.date = v;
       if (wasDone) toggleTask(t.date, t.id);

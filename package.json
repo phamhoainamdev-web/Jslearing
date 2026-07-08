@@ -1,0 +1,8 @@
+{
+  "name": "jslearing",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test 'Habitchecker/**/*.test.js'"
+  }
+}
