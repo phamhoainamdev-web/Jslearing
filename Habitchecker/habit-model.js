@@ -40,14 +40,19 @@ export function isDone(state, key, taskId) {
   return !!(state.records[key] && state.records[key][taskId]);
 }
 
-/* ===== Ngày hoàn thành ===== */
+/* ===== Ngày hoàn thành =====
+   done = số đã tick gộp (hằng ngày + một lần); dailyDone = chỉ hằng ngày —
+   dùng phân biệt ngày "trọn vẹn" (dailyDone === total), vì việc một lần
+   không thế chỗ được một việc hằng ngày bỏ sót. */
 export function dayStats(state, key) {
-  const total = tasksFor(state, key, 'daily').length;
+  const daily = tasksFor(state, key, 'daily');
+  const total = daily.length;
+  const dailyDone = daily.filter(t => isDone(state, key, t.id)).length;
   const done = tasksFor(state, key, 'all').filter(t => isDone(state, key, t.id)).length;
   const threshold = total === 0 ? 0
     : state.minDone > 0 ? Math.min(state.minDone, total) : total;
   const complete = total > 0 && done >= threshold;
-  return { total, done, threshold, complete };
+  return { total, done, dailyDone, threshold, complete };
 }
 
 /* ===== Chuỗi ===== */

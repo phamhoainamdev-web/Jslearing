@@ -943,7 +943,7 @@ for (const btn of document.querySelectorAll('.subtabs button')) {
 
 const HINTS = {
   matrix: 'Bảng chỉ gồm việc hằng ngày. Bấm thẳng vào ô để tick / bỏ tick — sửa được mọi ngày từ ngày bắt đầu của việc. Việc một lần được liệt kê riêng bên dưới bảng, vẫn xem và tick được theo từng ngày.',
-  year: 'Mỗi ô là một ngày — càng đậm càng làm được nhiều việc hằng ngày, xanh đậm nhất là ngày đạt ngưỡng hoàn thành 🔥. Bấm vào ô để mở bảng tháng đó.',
+  year: 'Mỗi ô là một ngày: nhạt = chưa đạt ngưỡng, đậm vừa = đạt ngưỡng giữ chuỗi 🔥, đậm nhất = làm trọn tất cả việc hằng ngày. Bấm vào ô để mở bảng tháng đó.',
   stats: 'Thống kê tính trên toàn bộ thời gian, từ ngày bắt đầu của từng việc đến hôm nay (việc một lần không tính).',
   journal: 'Nhật ký thành tựu theo ngày, mới nhất ở trên. Ghi thành tựu mới ở tab Hôm nay.',
 };
@@ -1153,9 +1153,12 @@ function renderYear(body) {
     } else {
       activeDays++;
       if (s.complete) fullDays++;
-      // Mức màu: đạt ngưỡng hoàn thành = đậm nhất, còn lại chia 3 mức
-      // theo tiến độ so với ngưỡng (không phải so với tổng số việc)
-      const level = s.complete ? 4 : s.done === 0 ? 0 : Math.min(3, Math.ceil(s.done / s.threshold * 3));
+      // Mức màu: trọn 100% việc hằng ngày = 4 (đậm nhất) · đạt ngưỡng = 3
+      // · chưa đạt = 1–2 theo tiến độ tới ngưỡng
+      const level = s.dailyDone >= s.total ? 4
+        : s.complete ? 3
+        : s.done === 0 ? 0
+        : Math.min(2, Math.ceil(s.done / s.threshold * 2));
       if (level) cell.classList.add('l' + level);
       cell.classList.add('click');
       cell.title = `${formatVN(key)} — ${s.done}/${s.total} việc${s.complete ? ' · đạt ✓' : ''}`;
