@@ -159,6 +159,14 @@ export function createStore(storage) {
       commit();
     },
     setTaskGroup(taskId, groupId) { findTask(taskId).groupId = groupId || null; commit(); },
+    /* Thứ tự mới của nhóm (mảng id, từ DOM sau khi kéo thả) —
+       thứ tự này quyết định thứ tự các mục ở tab Hôm nay */
+    reorderGroups(orderedIds) {
+      const ordered = orderedIds.map(id => state.groups.find(g => g.id === id)).filter(Boolean);
+      const rest = state.groups.filter(g => !orderedIds.includes(g.id));
+      state.groups = [...ordered, ...rest];
+      commit();
+    },
 
     /* ===== Nhật ký (state.achievements) ===== */
     addAchievement(date, text) {

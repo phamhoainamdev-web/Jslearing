@@ -124,7 +124,13 @@
     font-size: 10.5px; font-weight: 700; color: var(--amber);
     background: var(--amber-soft); padding: 2px 8px; border-radius: 99px; flex-shrink: 0;
   }
-  .req-star { font-size: 12px; flex-shrink: 0; cursor: default; }
+  .req-star { font-size: 15px; color: var(--amber); flex-shrink: 0; cursor: pointer; }
+  /* Tiêu đề nhóm trong danh sách Hôm nay */
+  ul.task-list li.group-heading {
+    font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
+    color: var(--muted); padding: 12px 2px 4px; border-bottom: none;
+  }
+  ul.task-list li.group-heading.required { color: var(--amber); }
 
   .empty { text-align: center; color: var(--muted); padding: 30px 10px; font-size: 14px; line-height: 1.6; }
 
@@ -251,9 +257,16 @@
     font-size: 12.5px; color: var(--muted); background: var(--field); outline: none;
   }
   .group-select:focus { color: var(--text); border-color: var(--primary); }
-  .group-badge {
-    font-size: 11px; color: var(--primary); background: var(--primary-soft); padding: 2px 8px;
-    border-radius: 99px; flex-shrink: 0;
+  /* Nút sao bật/tắt "bắt buộc" — vàng khi đang bật */
+  .req-toggle {
+    background: none; border: none; padding: 2px 4px; flex-shrink: 0;
+    font-size: 17px; line-height: 1; color: var(--faint); cursor: pointer;
+  }
+  .req-toggle:hover, .req-toggle.on { color: var(--amber); }
+  /* Dòng 2 của mỗi hàng việc: gom mọi nút điều khiển, khỏi vỡ dòng lộn xộn */
+  .manage-list .task-controls {
+    flex-basis: 100%; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    padding-left: 24px;
   }
   .date-mini {
     border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px;
@@ -461,6 +474,8 @@
       </div>
 
       <p class="hint">💡 Kéo tay nắm <b>⠿</b> để đổi thứ tự — thứ tự này áp dụng cho cả tab Hôm nay và Lịch sử.<br>
+      💡 Bấm sao <b>☆</b> cạnh tên việc để đánh dấu <b>bắt buộc ★</b> — ngày chỉ được tính hoàn thành khi làm đủ mọi việc bắt buộc, kể cả khi đã đạt ngưỡng.<br>
+      💡 Tab <b>Hôm nay</b> hiện việc theo nhóm: mục <b>★ Bắt buộc</b> tự gom mọi việc bắt buộc và luôn đứng đầu; các nhóm còn lại theo thứ tự bạn kéo xếp ở mục Nhóm việc; việc không nhóm nằm cuối.<br>
       💡 <b>Lưu trữ</b> sẽ ẩn việc khỏi danh sách hằng ngày nhưng vẫn giữ nguyên lịch sử các ngày đã làm trước đó. <b>Xóa</b> mới mất hẳn cả lịch sử.<br>
       💡 Việc chỉ được tính từ <b>ngày bắt đầu</b> — muốn tick cho những ngày sớm hơn, hãy lùi ngày bắt đầu lại bằng ô ngày bên cạnh tên việc.<br>
       💡 <b>Việc một lần</b> chỉ xuất hiện đúng ngày bạn chọn, không tính vào chuỗi/thống kê dài hạn. Việc một lần <b>đã hoàn thành</b> sẽ tự ẩn khỏi danh sách này khi sang tháng mới — xem lại trong tab <b>Lịch sử</b> của tháng đó.<br>
@@ -513,7 +528,7 @@
 <script type="module">
 import {
   dateKey, keyToDate, isOnce, onceDate, isActive, tasksFor, isDone,
-  dayStats, currentStreak, taskStreaks, tasksForMonth,
+  dayStats, currentStreak, taskStreaks, tasksForMonth, groupTasks,
 } from './habit-model.js';
 import { createStore } from './store.js';
 
@@ -775,40 +790,11 @@ function formatDMY(key) {
 /* ================= Logic công việc =================
    Toàn bộ logic domain (việc nào có hiệu lực ngày nào, ngày hoàn thành,
    chuỗi, thống kê tháng) nằm trong habit-model.js — xem CONTEXT.md.
-   Ở đây chỉ còn mutation, sẽ gom về store sau. */
-function toggleTask(key, taskId) {
-  store.toggleTick(key, taskId);
-}
+   Mọi mutation đi qua store.js; store commit xong tự gọi render(). */
 
 /* ================= Thành tựu mỗi ngày ================= */
-function newAchId() { return 'a' + Date.now() + Math.random().toString(36).slice(2, 6); }
-
-/* Chuẩn hóa về mảng [{id, date, text}] — chấp nhận cả dạng cũ { 'YYYY-MM-DD': 'text' } */
-function toAchievementArray(value) {
-  if (Array.isArray(value)) {
-    return value
-      .filter(a => a && a.text)
-      .map(a => ({ id: a.id || newAchId(), date: a.date || todayKey(), text: String(a.text) }));
-  }
-  if (value && typeof value === 'object') {
-    return Object.entries(value)
-      .filter(([, t]) => t)
-      .map(([date, text]) => ({ id: newAchId(), date, text: String(text) }));
-  }
-  return [];
-}
-
 function achievementsForDay(key) {
   return state.achievements.filter(a => a.date === key);
-}
-function addAchievement(date, text) {
-  store.addAchievement(date, text);
-}
-function deleteAchievement(id) {
-  store.deleteAchievement(id);
-}
-function editAchievement(id, text) {
-  store.editAchievement(id, text);
 }
 
 function escapeHtml(s) {
@@ -844,35 +830,49 @@ function renderToday() {
     list.innerHTML = '<div class="empty">Hôm nay chưa có việc nào.<br>Sang tab <b>Công việc</b> để thêm những việc bạn muốn làm.</div>';
   }
 
-  for (const t of tasks) {
-    const done = isDone(state, key, t.id);
-    const li = document.createElement('li');
-    if (done) li.className = 'done';
-    const cb = document.createElement('div');
-    cb.className = 'checkbox' + (done ? ' checked' : '');
-    cb.textContent = '✓';
-    const name = document.createElement('span');
-    name.className = 'task-name';
-    name.textContent = t.name;
-    const onToggle = () => { toggleTask(key, t.id); };
-    cb.onclick = onToggle;
-    name.onclick = onToggle;
-    li.append(cb, name);
-    if (t.required) {
-      const req = document.createElement('span');
-      req.className = 'req-star';
-      req.textContent = '★';
-      req.title = 'Việc bắt buộc';
-      req.onclick = (e) => { e.stopPropagation(); store.toggleRequired(t.id); };
-      li.appendChild(req);
+  /* Việc chia theo nhóm: Bắt buộc đứng đầu, rồi các nhóm theo thứ tự
+     người dùng sắp, việc không nhóm cuối cùng (xem groupTasks).
+     Chưa dùng nhóm/bắt buộc thì khỏi hiện tiêu đề — danh sách phẳng như cũ. */
+  const sections = groupTasks(state, tasks);
+  const showHeadings = !(sections.length === 1 && sections[0].key === 'none');
+  for (const sec of sections) {
+    if (showHeadings) {
+      const h = document.createElement('li');
+      h.className = 'group-heading' + (sec.key === 'required' ? ' required' : '');
+      h.textContent = sec.key === 'required' ? '★ Bắt buộc'
+        : sec.key === 'none' ? 'Không nhóm' : sec.name;
+      list.appendChild(h);
     }
-    if (isOnce(t)) {
-      const tag = document.createElement('span');
-      tag.className = 'once-tag';
-      tag.textContent = '1 lần';
-      li.appendChild(tag);
+    for (const t of sec.tasks) {
+      const done = isDone(state, key, t.id);
+      const li = document.createElement('li');
+      if (done) li.className = 'done';
+      const cb = document.createElement('div');
+      cb.className = 'checkbox' + (done ? ' checked' : '');
+      cb.textContent = '✓';
+      const name = document.createElement('span');
+      name.className = 'task-name';
+      name.textContent = t.name;
+      const onToggle = () => store.toggleTick(key, t.id);
+      cb.onclick = onToggle;
+      name.onclick = onToggle;
+      li.append(cb, name);
+      if (t.required) {
+        const req = document.createElement('span');
+        req.className = 'req-star';
+        req.textContent = '★';
+        req.title = 'Việc bắt buộc';
+        req.onclick = (e) => { e.stopPropagation(); store.toggleRequired(t.id); };
+        li.appendChild(req);
+      }
+      if (isOnce(t)) {
+        const tag = document.createElement('span');
+        tag.className = 'once-tag';
+        tag.textContent = '1 lần';
+        li.appendChild(tag);
+      }
+      list.appendChild(li);
     }
-    list.appendChild(li);
   }
 
   // Thanh tiến độ đo danh sách hôm nay (kể cả việc một lần);
@@ -917,7 +917,7 @@ function renderTodayAchievements() {
     const del = document.createElement('button');
     del.className = 'btn ghost small danger';
     del.textContent = 'Xóa';
-    del.onclick = () => { deleteAchievement(a.id); render(); };
+    del.onclick = () => store.deleteAchievement(a.id);
     li.append(bullet, text, del);
     list.appendChild(li);
   }
@@ -1055,7 +1055,7 @@ function renderDailyMatrix(body, tasks) {
         cell.className = 'm-cell ' + (done ? 'on' : 'off');
         cell.textContent = done ? '✓' : '·';
         cell.title = `${t.name} — ${formatVN(key)}`;
-        cell.onclick = () => { toggleTask(key, t.id); renderHistory(); };
+        cell.onclick = () => store.toggleTick(key, t.id);
       }
       td.appendChild(cell);
       tr.appendChild(td);
@@ -1120,7 +1120,7 @@ function renderOnceSection(body, once) {
       cell.className = 'm-cell ' + (done ? 'on' : 'off');
       cell.textContent = done ? '✓' : '·';
       cell.title = `${t.name} — ${formatVN(key)}`;
-      cell.onclick = () => { toggleTask(key, t.id); renderHistory(); };
+      cell.onclick = () => store.toggleTick(key, t.id);
     }
 
     const dd = document.createElement('span');
@@ -1318,8 +1318,7 @@ function renderJournal(body) {
     editBtn.onclick = () => {
       const v = prompt('Sửa thành tựu — ' + formatDMY(a.date) + ':', a.text);
       if (v === null) return;
-      editAchievement(a.id, v);
-      render();
+      store.editAchievement(a.id, v);
     };
 
     const delBtn = document.createElement('button');
@@ -1327,8 +1326,7 @@ function renderJournal(body) {
     delBtn.textContent = 'Xóa';
     delBtn.onclick = () => {
       if (!confirm('Xóa thành tựu này?\n\n' + a.text)) return;
-      deleteAchievement(a.id);
-      render();
+      store.deleteAchievement(a.id);
     };
 
     actions.append(editBtn, delBtn);
@@ -1394,7 +1392,6 @@ function addTask() {
   store.addTask(data);
   input.value = '';
   groupSelect.value = '';
-  render();
   input.focus();
 }
 document.getElementById('addTaskBtn').onclick = addTask;
@@ -1408,7 +1405,6 @@ function addGroup() {
   if (!name) return;
   store.addGroup(name);
   input.value = '';
-  render();
   input.focus();
 }
 document.getElementById('addGroupBtn').onclick = addGroup;
@@ -1434,7 +1430,7 @@ document.getElementById('addSkipBtn').onclick = () => {
 
 function renderSkips() {
   const list = document.getElementById('skipsList');
-  const keys = Object.keys(state.skips || {}).sort();
+  const keys = Object.keys(state.skips).sort();
   if (keys.length === 0) {
     list.innerHTML = '<div class="empty">Chưa có ngày nghỉ nào. Thêm ngày nghỉ để không làm đứt chuỗi.</div>';
     return;
@@ -1508,22 +1504,30 @@ function enableDrag(li, handle, onDrop) {
   });
 }
 
-// Sắp xếp lại li theo vị trí con trỏ trong lúc kéo
-document.getElementById('activeList').addEventListener('dragover', (e) => {
-  const listEl = e.currentTarget;
-  if (!draggedLi || draggedLi.parentElement !== listEl) return;
-  e.preventDefault();
-  const after = [...listEl.querySelectorAll('li:not(.dragging)')].find(el => {
-    const r = el.getBoundingClientRect();
-    return e.clientY < r.top + r.height / 2;
+// Sắp xếp lại li theo vị trí con trỏ trong lúc kéo (dùng cho cả việc lẫn nhóm)
+function enableListDragover(listEl) {
+  listEl.addEventListener('dragover', (e) => {
+    if (!draggedLi || draggedLi.parentElement !== listEl) return;
+    e.preventDefault();
+    const after = [...listEl.querySelectorAll('li:not(.dragging)')].find(el => {
+      const r = el.getBoundingClientRect();
+      return e.clientY < r.top + r.height / 2;
+    });
+    if (after) listEl.insertBefore(draggedLi, after);
+    else listEl.appendChild(draggedLi);
   });
-  if (after) listEl.insertBefore(draggedLi, after);
-  else listEl.appendChild(draggedLi);
-});
+}
+enableListDragover(document.getElementById('activeList'));
+enableListDragover(document.getElementById('groupsList'));
 
 function applyDailyOrder() {
   const orderedIds = [...document.querySelectorAll('#activeList li')].map(el => el.dataset.id);
   store.reorderDaily(orderedIds);
+}
+
+function applyGroupOrder() {
+  const orderedIds = [...document.querySelectorAll('#groupsList li')].map(el => el.dataset.id);
+  store.reorderGroups(orderedIds);
 }
 
 function makeRenameBtn(t) {
@@ -1548,13 +1552,16 @@ function makeDeleteBtn(t) {
   return btn;
 }
 
+/* Danh sách <option> chọn nhóm, dùng chung cho ô thêm việc và từng việc */
+function groupOptionsHtml(selectedId) {
+  return ['<option value="">Không nhóm</option>']
+    .concat(state.groups.map(g => `<option value="${g.id}" ${g.id === selectedId ? 'selected' : ''}>${escapeHtml(g.name)}</option>`))
+    .join('');
+}
+
 function renderGroupOptions() {
   const select = document.getElementById('newTaskGroup');
-  if (!select) return;
-  const current = select.value;
-  const options = ['<option value="">Không nhóm</option>'];
-  for (const g of state.groups || []) options.push(`<option value="${g.id}" ${g.id === current ? 'selected' : ''}>${escapeHtml(g.name)}</option>`);
-  select.innerHTML = options.join('');
+  select.innerHTML = groupOptionsHtml(select.value);
 }
 
 function renderManage() {
@@ -1594,21 +1601,10 @@ function renderManage() {
     name.className = 'name';
     name.textContent = t.name;
 
-    const groupBadge = document.createElement('span');
-    const g = (state.groups || []).find(x => x.id === t.groupId);
-    if (g) {
-      groupBadge.className = 'group-badge';
-      groupBadge.textContent = g.name;
-    }
-
     const groupSelect = document.createElement('select');
     groupSelect.className = 'group-select';
-    groupSelect.innerHTML = ['<option value="">Không nhóm</option>']
-      .concat((state.groups || []).map(x => `<option value="${x.id}" ${x.id === t.groupId ? 'selected' : ''}>${escapeHtml(x.name)}</option>`))
-      .join('');
-    groupSelect.onchange = () => {
-      store.setTaskGroup(t.id, groupSelect.value || null);
-    };
+    groupSelect.innerHTML = groupOptionsHtml(t.groupId);
+    groupSelect.onchange = () => store.setTaskGroup(t.id, groupSelect.value || null);
 
     const dateLabel = document.createElement('span');
     dateLabel.className = 'date-label';
@@ -1627,10 +1623,16 @@ function renderManage() {
     };
 
     const reqBtn = document.createElement('button');
-    reqBtn.className = 'btn ghost small';
-    reqBtn.textContent = t.required ? 'Bắt buộc' : 'Không bắt buộc';
+    reqBtn.className = 'req-toggle' + (t.required ? ' on' : '');
+    reqBtn.textContent = t.required ? '★' : '☆';
+    reqBtn.title = t.required ? 'Việc bắt buộc — bấm để bỏ' : 'Đánh dấu là việc bắt buộc';
     reqBtn.onclick = () => store.toggleRequired(t.id);
-    li.append(handle, name, groupBadge, reqBtn, groupSelect, dateLabel, startPick, makeRenameBtn(t), archiveBtn, makeDeleteBtn(t));
+
+    /* Dòng 1: tay nắm + tên + sao; dòng 2: các nút điều khiển */
+    const controls = document.createElement('div');
+    controls.className = 'task-controls';
+    controls.append(groupSelect, dateLabel, startPick, makeRenameBtn(t), archiveBtn, makeDeleteBtn(t));
+    li.append(handle, name, reqBtn, controls);
     activeList.appendChild(li);
   }
 
@@ -1659,15 +1661,26 @@ function renderManage() {
       store.moveOnceTask(t.id, v);
     });
 
-    li.append(name, status, dayPick, makeRenameBtn(t), makeDeleteBtn(t));
+    const controls = document.createElement('div');
+    controls.className = 'task-controls';
+    controls.append(dayPick, makeRenameBtn(t), makeDeleteBtn(t));
+    li.append(name, status, controls);
     onceList.appendChild(li);
   }
 
   const groupsList = document.getElementById('groupsList');
   groupsList.innerHTML = '';
   renderSkips();
-  for (const g of state.groups || []) {
+  for (const g of state.groups) {
     const li = document.createElement('li');
+    li.dataset.id = g.id;
+
+    const handle = document.createElement('span');
+    handle.className = 'drag-handle';
+    handle.textContent = '⠿';
+    handle.title = 'Kéo để đổi thứ tự nhóm — tab Hôm nay hiện theo thứ tự này';
+    enableDrag(li, handle, applyGroupOrder);
+
     const name = document.createElement('span');
     name.className = 'name';
     name.textContent = g.name;
@@ -1678,7 +1691,7 @@ function renderManage() {
       if (!confirm(`Xóa nhóm "${g.name}"? Các việc đang ở nhóm này sẽ trở về “không nhóm”.`)) return;
       store.deleteGroup(g.id);
     };
-    li.append(name, delBtn);
+    li.append(handle, name, delBtn);
     groupsList.appendChild(li);
   }
 
@@ -1754,17 +1767,9 @@ const JS_WARNINGS = [
   { id: 'teamdrain', text: 'Task project nhóm ăn vào 3h code cá nhân' },
 ];
 
-function normalizeJsState(v) {
-  const o = (v && typeof v === 'object') ? v : {};
-  if (!o.weekPlans || typeof o.weekPlans !== 'object') o.weekPlans = {};
-  if (!o.checkpoints || typeof o.checkpoints !== 'object') o.checkpoints = {};
-  if (!o.checkins || typeof o.checkins !== 'object') o.checkins = {};
-  return o;
-}
 function newJsId() { return 'j' + Date.now() + Math.random().toString(36).slice(2, 6); }
 
-state.js = normalizeJsState(state.js);
-/* Kế hoạch tuần 1 nạp sẵn từ progress.md */
+/* Kế hoạch tuần 1 nạp sẵn từ progress.md (state.js đã được store chuẩn hóa) */
 if (!state.js.weekPlans[1]) {
   state.js.weekPlans[1] = [
     'Build lõi Vocab Trainer bản tĩnh: form thêm từ → render danh sách → xóa/sửa → flashcard lật mặt',
@@ -1875,7 +1880,7 @@ function renderJsWeekCard() {
     cb.onclick = () => {
       if (!confirm(`Đánh dấu đã đạt mục tiêu:\n"${nextCp.name}"?`)) return;
       state.js.checkpoints[nextCp.id] = todayKey();
-      save(); render();
+      save();
     };
     const body = document.createElement('div');
     body.innerHTML = `🏁 Mục tiêu kế tiếp: <b>${escapeHtml(nextCp.name)}</b><br>
@@ -1906,7 +1911,7 @@ function renderJsWeekCard() {
     const name = document.createElement('span');
     name.className = 'task-name';
     name.textContent = it.text;
-    const toggle = () => { it.done = !it.done; save(); render(); };
+    const toggle = () => { it.done = !it.done; save(); };
     cb.onclick = toggle;
     name.onclick = toggle;
     const del = document.createElement('button');
@@ -1915,7 +1920,7 @@ function renderJsWeekCard() {
     del.title = 'Xóa việc này';
     del.onclick = () => {
       state.js.weekPlans[week] = items.filter(x => x.id !== it.id);
-      save(); render();
+      save();
     };
     li.append(cb, name, del);
     ul.appendChild(li);
@@ -1936,7 +1941,7 @@ function renderJsWeekCard() {
     if (!text) return;
     jsPlan(week).push({ id: newJsId(), text, done: false });
     input.value = '';
-    save(); render();
+    save();
   };
   addBtn.onclick = addItem;
   input.addEventListener('keydown', e => { if (e.key === 'Enter') addItem(); });
@@ -2047,7 +2052,7 @@ document.getElementById('jsCiSaveBtn').onclick = () => {
       .map(text => ({ id: newJsId(), text, done: false }));
   }
   closeJsCheckin();
-  save(); render();
+  save();
   if (!existed && week < 10) alert(`Đã chốt tuần ${week} ✓ — tuần ${week + 1} đã mở.`);
 };
 
@@ -2077,7 +2082,7 @@ function renderJsClosed() {
       undoBtn.onclick = () => {
         if (!confirm(`Bỏ đánh dấu "${cp.name}"?`)) return;
         delete state.js.checkpoints[cp.id];
-        save(); render();
+        save();
       };
       const text = document.createElement('div');
       text.innerHTML = `<span style="color:var(--green);font-weight:700">✓</span> ${escapeHtml(cp.name)} <span style="color:var(--muted)">— ${formatDMY(state.js.checkpoints[cp.id])}</span>`;
@@ -2122,7 +2127,7 @@ function renderJsClosed() {
       delBtn.onclick = () => {
         if (!confirm(`Xóa check-in tuần ${w}? Tuần ${w} sẽ mở lại thành tuần đang làm.`)) return;
         delete state.js.checkins[w];
-        save(); render();
+        save();
       };
       actions.append(copyBtn, editBtn, delBtn);
       row.appendChild(actions);
