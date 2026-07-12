@@ -18,7 +18,6 @@ test('normalize: dữ liệu trống/hỏng ra đủ trường mặc định', (
   const s = normalize(null);
   assert.deepEqual(s.tasks, []);
   assert.deepEqual(s.records, {});
-  assert.equal(s.minDone, 3);
   assert.deepEqual(s.achievements, []);
   assert.deepEqual(s.skips, {});
   assert.deepEqual(s.groups, []);
@@ -171,7 +170,7 @@ test('importData: thay toàn bộ và tính là sửa trên máy (source local)'
   const store = createStore(makeStorage());
   const events = [];
   store.onChange(src => events.push(src));
-  store.importData({ tasks: [], records: {}, minDone: 5 });
+  store.importData({ tasks: [], records: {}, achievements: { '2026-07-01': 'nhập từ file' } });
   assert.deepEqual(events, ['local']);
-  assert.equal(store.state.minDone, 5);
+  assert.equal(store.state.achievements[0].text, 'nhập từ file');
 });

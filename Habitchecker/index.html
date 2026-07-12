@@ -284,13 +284,6 @@
   .date-pick { position: relative; display: inline-flex; }
   .date-pick > input { position: absolute; inset: 0; width: 100%; opacity: 0; pointer-events: none; border: 0; padding: 0; }
   .date-label { font-size: 11.5px; color: var(--muted); }
-  .threshold-row { font-size: 13.5px; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .threshold-row input {
-    width: 56px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 8px;
-    font-size: 14px; font-weight: 700; text-align: center; outline: none;
-    background: var(--field); color: var(--text);
-  }
-  .threshold-row input:focus { border-color: var(--primary); }
   .section-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin: 4px 0 8px; }
 
   /* ===== Thành tựu ===== */
@@ -462,13 +455,6 @@
         <ul class="manage-list" id="archivedList"></ul>
       </div>
 
-      <div class="section-title" style="margin-top:16px">Cài đặt chuỗi 🔥</div>
-      <div class="threshold-row">
-        Một ngày được tính hoàn thành khi làm ít nhất
-        <input type="number" id="minDoneInput" min="0" max="99">
-        việc <span class="date-label">(0 = phải đủ tất cả)</span>
-      </div>
-
       <div class="section-title" style="margin-top:16px">Ngày nghỉ</div>
       <div class="add-row">
         <input id="skipDateInput" type="date" style="flex:0 1 160px; min-width:140px" value="">
@@ -497,7 +483,7 @@
       </div>
 
       <p class="hint">💡 Kéo tay nắm <b>⠿</b> để đổi thứ tự — thứ tự này áp dụng cho cả tab Hôm nay và Lịch sử.<br>
-      💡 Bấm sao <b>☆</b> cạnh tên việc để đánh dấu <b>bắt buộc ★</b> — ngày chỉ được tính hoàn thành khi làm đủ mọi việc bắt buộc, kể cả khi đã đạt ngưỡng.<br>
+      💡 Bấm sao <b>☆</b> cạnh tên việc để đánh dấu <b>bắt buộc ★</b> — ngày được tính hoàn thành (giữ chuỗi 🔥) khi tick đủ <b>mọi</b> việc bắt buộc; việc thường không ảnh hưởng chuỗi. Chưa đánh dấu việc nào thì chuỗi không chạy.<br>
       💡 Tab <b>Hôm nay</b> hiện việc theo nhóm: mục <b>★ Bắt buộc</b> tự gom mọi việc bắt buộc và luôn đứng đầu; các nhóm còn lại theo thứ tự bạn kéo xếp ở mục Nhóm việc; việc không nhóm nằm cuối.<br>
       💡 <b>Lưu trữ</b> sẽ ẩn việc khỏi danh sách hằng ngày nhưng vẫn giữ nguyên lịch sử các ngày đã làm trước đó. <b>Xóa</b> mới mất hẳn cả lịch sử.<br>
       💡 Việc chỉ được tính từ <b>ngày bắt đầu</b> — muốn tick cho những ngày sớm hơn, hãy lùi ngày bắt đầu lại bằng ô ngày bên cạnh tên việc.<br>
@@ -907,14 +893,18 @@ function renderToday() {
   document.getElementById('progressLabel').textContent = `${stats.done}/${total}`;
 
   const streak = currentStreak(state, key);
-  if (streak > 0) {
-    document.getElementById('streakLabel').innerHTML =
+  const streakLabel = document.getElementById('streakLabel');
+  if (stats.requiredTotal === 0) {
+    // Chuỗi chỉ tính trên việc bắt buộc — chưa đánh dấu việc nào thì nhắc cách bật
+    streakLabel.innerHTML = 'Bấm <b>☆</b> ở tab Công việc để chọn việc bắt buộc — chuỗi 🔥 tính khi xong hết việc bắt buộc trong ngày';
+  } else if (streak > 0) {
+    streakLabel.innerHTML =
       `🔥 Chuỗi hoàn thành: <b>${streak} ngày</b> liên tiếp` +
-      (stats.total > 0 && !stats.complete ? ` — hôm nay cần ít nhất ${stats.threshold}/${stats.total} việc để giữ chuỗi` : '');
+      (!stats.complete ? ` — hôm nay còn <b>${stats.requiredMissing}</b> việc bắt buộc ★ để giữ chuỗi` : '');
   } else {
-    document.getElementById('streakLabel').innerHTML = stats.total > 0
-      ? `Làm ít nhất <b>${stats.threshold}/${stats.total}</b> việc hôm nay để bắt đầu chuỗi 🔥`
-      : 'Hoàn thành việc mỗi ngày để xây chuỗi 🔥';
+    streakLabel.innerHTML = stats.complete
+      ? 'Hoàn thành việc bắt buộc mỗi ngày để xây chuỗi 🔥'
+      : `Còn <b>${stats.requiredMissing}/${stats.requiredTotal}</b> việc bắt buộc ★ hôm nay — xong hết để bắt đầu chuỗi 🔥`;
   }
 
   renderTodayAchievements();
@@ -981,7 +971,7 @@ for (const btn of document.querySelectorAll('.subtabs button')) {
 
 const HINTS = {
   matrix: 'Bảng chỉ gồm việc hằng ngày. Bấm thẳng vào ô để tick / bỏ tick — sửa được mọi ngày từ ngày bắt đầu của việc. Việc một lần được liệt kê riêng bên dưới bảng, vẫn xem và tick được theo từng ngày.',
-  year: 'Mỗi ô là một ngày: nhạt = chưa đạt ngưỡng, đậm vừa = đạt ngưỡng giữ chuỗi 🔥, đậm nhất = làm trọn tất cả việc hằng ngày. Bấm vào ô để mở bảng tháng đó.',
+  year: 'Mỗi ô là một ngày: nhạt = chưa xong hết việc bắt buộc, đậm vừa = xong hết việc bắt buộc ★ giữ chuỗi 🔥, đậm nhất = làm trọn tất cả việc hằng ngày. Bấm vào ô để mở bảng tháng đó.',
   stats: 'Thống kê tính trên toàn bộ thời gian, từ ngày bắt đầu của từng việc đến hôm nay (việc một lần không tính).',
   journal: 'Nhật ký thành tựu theo ngày, mới nhất ở trên. Ghi thành tựu mới ở tab Hôm nay.',
 };
@@ -1191,12 +1181,12 @@ function renderYear(body) {
     } else {
       activeDays++;
       if (s.complete) fullDays++;
-      // Mức màu: trọn 100% việc hằng ngày = 4 (đậm nhất) · đạt ngưỡng = 3
-      // · chưa đạt = 1–2 theo tiến độ tới ngưỡng
-      const level = s.dailyDone >= s.total ? 4
+      // Mức màu: hoàn thành + trọn 100% việc hằng ngày = 4 (đậm nhất)
+      // · đủ việc bắt buộc = 3 · chưa đủ = 1–2 theo tiến độ tick trong ngày
+      const level = s.complete && s.dailyDone >= s.total ? 4
         : s.complete ? 3
         : s.done === 0 ? 0
-        : Math.min(2, Math.ceil(s.done / s.threshold * 2));
+        : Math.min(2, Math.ceil(s.done / s.total * 2));
       if (level) cell.classList.add('l' + level);
       cell.classList.add('click');
       cell.title = `${formatVN(key)} — ${s.done}/${s.total} việc${s.complete ? ' · đạt ✓' : ''}`;
@@ -1221,7 +1211,7 @@ function renderYear(body) {
   const summary = document.createElement('div');
   summary.className = 'year-summary';
   summary.innerHTML = activeDays
-    ? `Năm ${calYear}: đạt ngưỡng hoàn thành <b>${fullDays}</b>/<b>${activeDays}</b> ngày có việc (<b>${Math.round(fullDays / activeDays * 100)}%</b>)`
+    ? `Năm ${calYear}: hoàn thành việc bắt buộc <b>${fullDays}</b>/<b>${activeDays}</b> ngày có việc (<b>${Math.round(fullDays / activeDays * 100)}%</b>)`
     : `Năm ${calYear} chưa có dữ liệu.`;
   body.appendChild(summary);
 
@@ -1435,12 +1425,6 @@ document.getElementById('newGroupInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') addGroup();
 });
 
-const minDoneInput = document.getElementById('minDoneInput');
-minDoneInput.onchange = () => {
-  const v = parseInt(minDoneInput.value, 10);
-  store.setMinDone(Number.isFinite(v) && v >= 0 ? v : 0);
-};
-
 document.getElementById('addSkipBtn').onclick = () => {
   const dateInput = document.getElementById('skipDateInput');
   const reasonInput = document.getElementById('skipReasonInput');
@@ -1588,7 +1572,6 @@ function renderGroupOptions() {
 }
 
 function renderManage() {
-  minDoneInput.value = state.minDone;
   renderGroupOptions();
   const activeList = document.getElementById('activeList');
   const onceList = document.getElementById('onceList');
