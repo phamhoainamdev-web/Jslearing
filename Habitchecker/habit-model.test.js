@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   dateKey, keyToDate, isActive, tasksFor, isDone, isSkipped,
-  dayStats, currentStreak, taskStreaks, tasksForMonth,
+  dayStats, currentStreak, taskStreaks, tasksForMonth, groupTasks,
 } from './habit-model.js';
 
 /* ===== Dựng dữ liệu giả ===== */
@@ -334,4 +334,49 @@ test('isDone: đọc records, ngày trống trả false', () => {
   assert.equal(isDone(state, '2026-07-08', 'a'), true);
   assert.equal(isDone(state, '2026-07-08', 'b'), false);
   assert.equal(isDone(state, '2026-07-01', 'a'), false);
+});
+
+/* ===== groupTasks: chia việc theo nhóm để hiển thị ===== */
+test('groupTasks: bắt buộc luôn đứng đầu, kéo việc ra khỏi nhóm gốc của nó', () => {
+  const state = makeState({
+    tasks: [
+      { ...daily('gym', '2026-07-01'), groupId: 'g1' },
+      { ...required('js', '2026-07-01'), groupId: 'g2' }, // bắt buộc dù thuộc g2
+      { ...daily('read', '2026-07-01'), groupId: 'g2' },
+      daily('note', '2026-07-01'), // không nhóm
+    ],
+  });
+  state.groups = [{ id: 'g1', name: 'Sức khỏe' }, { id: 'g2', name: 'Học tập' }];
+  const secs = groupTasks(state, state.tasks);
+  assert.deepEqual(secs.map(s => s.key), ['required', 'g1', 'g2', 'none']);
+  assert.deepEqual(secs.map(s => s.tasks.map(t => t.id)), [['js'], ['gym'], ['read'], ['note']]);
+  assert.equal(secs[1].name, 'Sức khỏe');
+});
+
+test('groupTasks: theo đúng thứ tự state.groups — đổi thứ tự nhóm là đổi thứ tự mục', () => {
+  const state = makeState({
+    tasks: [
+      { ...daily('gym', '2026-07-01'), groupId: 'g1' },
+      { ...daily('read', '2026-07-01'), groupId: 'g2' },
+    ],
+  });
+  state.groups = [{ id: 'g2', name: 'Học tập' }, { id: 'g1', name: 'Sức khỏe' }];
+  assert.deepEqual(groupTasks(state, state.tasks).map(s => s.key), ['g2', 'g1']);
+});
+
+test('groupTasks: mục rỗng bị bỏ; nhóm đã xóa coi như không nhóm', () => {
+  const state = makeState({
+    tasks: [{ ...daily('a', '2026-07-01'), groupId: 'gDeleted' }],
+  });
+  state.groups = [{ id: 'g1', name: 'Trống' }]; // g1 không có việc nào
+  const secs = groupTasks(state, state.tasks);
+  assert.deepEqual(secs.map(s => s.key), ['none']);
+  assert.deepEqual(secs[0].tasks.map(t => t.id), ['a']);
+});
+
+test('groupTasks: không nhóm, không bắt buộc → một mục none duy nhất (state cũ chưa có groups)', () => {
+  const state = makeState({ tasks: [daily('a', '2026-07-01'), daily('b', '2026-07-01')] });
+  const secs = groupTasks(state, state.tasks);
+  assert.deepEqual(secs.map(s => s.key), ['none']);
+  assert.equal(secs[0].tasks.length, 2);
 });

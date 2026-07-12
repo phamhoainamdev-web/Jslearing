@@ -55,6 +55,25 @@ test('toggleTick: tick rồi bỏ tick thì records sạch (không còn ngày r�
   assert.equal('2026-07-10' in store.state.records, false);
 });
 
+test('toggleRequired: bật rồi tắt cờ bắt buộc của việc', () => {
+  const store = createStore(makeStorage());
+  store.addTask({ name: 'Tập thể dục' });
+  const id = store.state.tasks[0].id;
+  store.toggleRequired(id);
+  assert.equal(store.state.tasks[0].required, true);
+  store.toggleRequired(id);
+  assert.equal(store.state.tasks[0].required, false);
+});
+
+test('setSkip/clearSkip: thêm ngày nghỉ (lý do có thể rỗng) rồi xóa sạch', () => {
+  const store = createStore(makeStorage());
+  store.setSkip('2026-07-10', 'ốm');
+  store.setSkip('2026-07-11', '');
+  assert.deepEqual(store.state.skips, { '2026-07-10': 'ốm', '2026-07-11': '' });
+  store.clearSkip('2026-07-10');
+  assert.deepEqual(store.state.skips, { '2026-07-11': '' });
+});
+
 test('deleteTask: xóa việc thì lịch sử tick của nó cũng sạch', () => {
   const store = createStore(makeStorage());
   store.addTask({ name: 'a' });
@@ -89,6 +108,24 @@ test('reorderDaily: đổi thứ tự việc hằng ngày, việc khác dồn v�
 });
 
 /* ===== nhóm việc ===== */
+test('addTask: gắn nhóm ngay lúc tạo việc', () => {
+  const store = createStore(makeStorage());
+  store.addGroup('💪 Sức khỏe');
+  const g = store.state.groups[0].id;
+  store.addTask({ name: 'gym', groupId: g });
+  assert.equal(store.state.tasks[0].groupId, g);
+});
+
+test('reorderGroups: đổi thứ tự nhóm, nhóm không nằm trong mảng dồn về cuối', () => {
+  const store = createStore(makeStorage());
+  store.addGroup('Sức khỏe');
+  store.addGroup('Học tập');
+  store.addGroup('Gia đình');
+  const [g1, g2, g3] = store.state.groups.map(g => g.id);
+  store.reorderGroups([g3, g1]);
+  assert.deepEqual(store.state.groups.map(g => g.name), ['Gia đình', 'Sức khỏe', 'Học tập']);
+});
+
 test('deleteGroup: xóa nhóm thì việc trong nhóm về "chưa phân nhóm", không mất việc', () => {
   const store = createStore(makeStorage());
   store.addTask({ name: 'gym' });

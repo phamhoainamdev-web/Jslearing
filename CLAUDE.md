@@ -1,6 +1,6 @@
 # Jslearing
 
-Repo học JavaScript (chủ repo là người mới học — trao đổi bằng **tiếng Việt**, comment code tiếng Việt, giải thích khái niệm mới bằng ví dụ cụ thể).
+Repo tạo Habit checker (trao đổi bằng **tiếng Việt**, comment code tiếng Việt, giải thích khái niệm mới bằng ví dụ cụ thể).
 
 ## Habitchecker/ — app chính
 
@@ -16,6 +16,4 @@ PWA một trang, deploy GitHub Pages: https://phamhoainamdev-web.github.io/Jslea
 `npm test` — `node --test`, không dependency. Sửa/thêm logic trong `habit-model.js` thì cập nhật `Habitchecker/habit-model.test.js` và chạy test trước khi đấu dây vào UI.
 
 ## Khác
-
-- `Todo/` — bài tập học, không phải app chính, không cần refactor.
 - Dữ liệu người dùng nằm trong `localStorage` (+ đồng bộ GitHub Gist) — cẩn trọng với thay đổi làm lệch định dạng `state`.

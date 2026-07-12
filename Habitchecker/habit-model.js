@@ -47,6 +47,25 @@ export function isDone(state, key, taskId) {
   return !!(state.records[key] && state.records[key][taskId]);
 }
 
+/* ===== Nhóm hiển thị =====
+   Chia một danh sách việc thành các mục theo nhóm (tab Hôm nay dùng):
+   - Việc bắt buộc vào mục ảo 'required', LUÔN đứng đầu — dù nó thuộc nhóm nào
+     (groupId của việc giữ nguyên, đây chỉ là cách hiển thị).
+   - Các nhóm thật theo đúng thứ tự trong state.groups (người dùng sắp xếp được).
+   - Việc không có nhóm (hoặc nhóm đã bị xóa) vào mục 'none' cuối cùng.
+   Mục không có việc nào thì bỏ. Trả về [{ key, name, tasks }] —
+   key: 'required' | id nhóm | 'none'; name chỉ có ở nhóm thật. */
+export function groupTasks(state, tasks) {
+  const groups = state.groups || [];
+  const sections = [{ key: 'required', name: null, tasks: tasks.filter(t => t.required) }];
+  for (const g of groups) {
+    sections.push({ key: g.id, name: g.name, tasks: tasks.filter(t => !t.required && t.groupId === g.id) });
+  }
+  const known = new Set(groups.map(g => g.id));
+  sections.push({ key: 'none', name: null, tasks: tasks.filter(t => !t.required && !known.has(t.groupId)) });
+  return sections.filter(s => s.tasks.length > 0);
+}
+
 /* ===== Ngày nghỉ ===== */
 /* Dùng `in` chứ không đọc giá trị: lý do rỗng '' vẫn là ngày nghỉ */
 export function isSkipped(state, key) {
