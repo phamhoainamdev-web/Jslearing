@@ -106,8 +106,15 @@ export function createStore(storage) {
     clearSkip(key) { delete state.skips[key]; commit(); },
 
     /* ===== Việc ===== */
-    addTask({ name, repeat = 'daily', date }) {
-      const task = { id: newId('t'), name, repeat, createdAt: todayKey(), archivedAt: null };
+    addTask({ name, repeat = 'daily', date, required = false }) {
+      const task = {
+        id: newId('t'),
+        name,
+        repeat,
+        createdAt: todayKey(),
+        archivedAt: null,
+        required: repeat === 'daily' ? !!required : false,
+      };
       if (repeat === 'once') task.date = date;
       state.tasks.push(task);
       commit();

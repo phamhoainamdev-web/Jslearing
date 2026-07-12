@@ -237,6 +237,8 @@
   .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
   .btn.ghost:hover { color: var(--text); background: var(--soft-hover); }
   .btn.small { padding: 6px 12px; font-size: 13px; height: auto; }
+  .btn.required { background: var(--amber-soft); color: var(--amber); border-color: var(--amber); }
+  .btn.required:hover { filter: brightness(1.02); }
   .btn.danger { color: var(--red); border-color: var(--red-border); }
   .btn.danger:hover { background: var(--red-soft); color: var(--red); }
   .manage-list li { display: flex; align-items: center; gap: 8px; padding: 10px 4px; border-bottom: 1px solid var(--border); list-style: none; flex-wrap: wrap; }
@@ -250,6 +252,11 @@
     border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px;
     font-size: 12.5px; color: var(--muted); background: var(--field); outline: none;
   }
+  .check-pill {
+    display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; border: 1px solid var(--border);
+    border-radius: 10px; background: var(--field); color: var(--text); font-size: 14px; height: 44px;
+  }
+  .check-pill input { accent-color: var(--primary); }
   .date-mini:hover, .date-mini:focus { color: var(--text); border-color: var(--primary); }
   button.date-mini { cursor: pointer; font-family: inherit; }
   /* Ô chọn ngày tự vẽ: nút hiện dd/mm/yyyy + input date ẩn bên dưới để mở lịch */
@@ -391,6 +398,10 @@
           <option value="daily">Hằng ngày</option>
           <option value="once">Một lần</option>
         </select>
+        <label class="check-pill">
+          <input type="checkbox" id="newTaskRequired">
+          <span>Bắt buộc</span>
+        </label>
         <button class="btn" id="addTaskBtn">Thêm</button>
       </div>
 
@@ -1372,6 +1383,7 @@ repeatSelect.onchange = () => {
 
 function addTask() {
   const input = document.getElementById('newTaskInput');
+  const requiredInput = document.getElementById('newTaskRequired');
   const name = input.value.trim();
   if (!name) return;
   const repeat = repeatSelect.value;
@@ -1381,11 +1393,13 @@ function addTask() {
     repeat,
     createdAt: todayKey(),
     archivedAt: null,
+    required: repeat === 'daily' ? !!requiredInput.checked : false,
   };
   if (repeat === 'once') task.date = newOnceDate;
   state.tasks.push(task);
   save();
   input.value = '';
+  requiredInput.checked = false;
   render();
   input.focus();
 }
@@ -1547,6 +1561,12 @@ function renderManage() {
     name.className = 'name';
     name.textContent = t.name;
 
+    const requiredBtn = document.createElement('button');
+    requiredBtn.className = 'btn ghost small' + (t.required ? ' required' : '');
+    requiredBtn.textContent = t.required ? '★ Bắt buộc' : '☆ Bắt buộc';
+    requiredBtn.title = t.required ? 'Bỏ đánh dấu bắt buộc' : 'Đánh dấu là việc bắt buộc';
+    requiredBtn.onclick = () => { t.required = !t.required; save(); render(); };
+
     const dateLabel = document.createElement('span');
     dateLabel.className = 'date-label';
     dateLabel.textContent = 'bắt đầu:';
@@ -1564,7 +1584,7 @@ function renderManage() {
       }
     };
 
-    li.append(handle, name, dateLabel, startPick, makeRenameBtn(t), archiveBtn, makeDeleteBtn(t));
+    li.append(handle, name, requiredBtn, dateLabel, startPick, makeRenameBtn(t), archiveBtn, makeDeleteBtn(t));
     activeList.appendChild(li);
   }
 
