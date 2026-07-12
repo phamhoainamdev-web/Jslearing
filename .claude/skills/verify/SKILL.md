@@ -24,8 +24,7 @@ Script mẫu: mở `http://localhost:8777/index.html`, `localStorage.clear()` + 
 
 - Tab: `#tab-today`, `#tab-history`, `#tab-manage`, `#tab-js`
 - Thêm việc: `#newTaskInput` + `#addTaskBtn` (select `#newTaskRepeat` cho việc một lần)
-- Ngưỡng: `#minDoneInput` (fill xong phải `dispatchEvent 'change'`)
-- Hôm nay: `#todayList li .checkbox`, nhãn `#streakLabel`, `#progressLabel`
+- Hôm nay: `#todayList li .checkbox`, nhãn `#streakLabel`, `#progressLabel` (chuỗi chỉ tính khi xong hết việc bắt buộc ★ — muốn test chuỗi phải bật ★ ít nhất một việc)
 - Lịch sử: subtab `.subtabs button[data-mode="matrix|year|stats|journal"]`; bảng `table.matrix`, heatmap `.yr-cell` (tooltip nằm trong `title`)
 - Quản lý: hàng việc `#activeList li`, nút `⭐/☆ Bắt buộc`, `Sửa tên`, `Lưu trữ`, `Xóa`; nhóm: `#newGroupInput` + `#addGroupBtn`, danh sách `#groupList li`, ô chọn nhóm mỗi việc `select.group-select`
 
@@ -33,6 +32,6 @@ Bắt lỗi: `page.on('pageerror')` + `console` type error; `page.on('dialog', d
 
 ## Gotcha
 
-- **Click bị nuốt sau khi sửa ô ngưỡng**: `#minDoneInput` đang focus mà click nút khác thì blur → `change` → `render()` xây lại DOM giữa mousedown/mouseup, cú click rơi vào khoảng không. Blur trước (click chỗ trung tính + đợi ~100ms) rồi mới bấm nút.
+- **Click bị nuốt sau khi sửa input có `onchange` → `render()`**: input đang focus mà click nút khác thì blur → `change` → `render()` xây lại DOM giữa mousedown/mouseup, cú click rơi vào khoảng không. Blur trước (click chỗ trung tính + đợi ~100ms) rồi mới bấm nút.
 - Cổng 8777 có thể còn server của phiên trước — `curl` kiểm tra trước khi than "Address already in use".
 - `/tmp` gốc bị dọn giữa phiên; để node_modules và script trong scratchpad.

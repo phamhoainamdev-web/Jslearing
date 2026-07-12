@@ -13,8 +13,8 @@ const required = (id, createdAt, archivedAt = null) =>
 const once = (id, date) =>
   ({ id, name: id, repeat: 'once', date, createdAt: date });
 
-function makeState({ tasks = [], records = {}, minDone = 3, skips = {} } = {}) {
-  return { tasks, records, minDone, skips };
+function makeState({ tasks = [], records = {}, skips = {} } = {}) {
+  return { tasks, records, skips };
 }
 
 /* ===== Toán ngày ===== */
@@ -50,78 +50,66 @@ test('tasksFor: scope daily loại việc một lần, scope all gồm cả', ()
 });
 
 /* ===== dayStats: định nghĩa "ngày hoàn thành" ===== */
-test('dayStats: đạt ngưỡng minDone thì hoàn thành', () => {
+test('dayStats: hoàn thành = tick đủ MỌI việc bắt buộc, việc thường không ảnh hưởng', () => {
   const state = makeState({
-    tasks: [daily('a', '2026-07-01'), daily('b', '2026-07-01'),
-            daily('c', '2026-07-01'), daily('d', '2026-07-01')],
-    records: { '2026-07-08': { a: true, b: true } },
-    minDone: 3,
+    tasks: [required('r1', '2026-07-01'), required('r2', '2026-07-01'),
+            daily('a', '2026-07-01'), daily('b', '2026-07-01')],
+    records: { '2026-07-08': { r1: true } },
   });
   assert.deepEqual(dayStats(state, '2026-07-08'),
-    { total: 4, done: 2, dailyDone: 2, threshold: 3, requiredMissing: 0, skipped: false, complete: false });
-  state.records['2026-07-08'].c = true;
+    { total: 4, done: 1, dailyDone: 1, requiredTotal: 2, requiredMissing: 1, skipped: false, complete: false });
+  // tick nốt r2 → hoàn thành, dù a và b vẫn để trống
+  state.records['2026-07-08'].r2 = true;
   assert.equal(dayStats(state, '2026-07-08').complete, true);
 });
 
-test('dayStats: minDone=0 nghĩa là phải đủ tất cả việc hằng ngày', () => {
+test('dayStats: ngày không có việc bắt buộc nào → không hoàn thành, kể cả tick hết việc thường', () => {
   const state = makeState({
     tasks: [daily('a', '2026-07-01'), daily('b', '2026-07-01')],
-    records: { '2026-07-08': { a: true } },
-    minDone: 0,
+    records: { '2026-07-08': { a: true, b: true } },
   });
   assert.deepEqual(dayStats(state, '2026-07-08'),
-    { total: 2, done: 1, dailyDone: 1, threshold: 2, requiredMissing: 0, skipped: false, complete: false });
+    { total: 2, done: 2, dailyDone: 2, requiredTotal: 0, requiredMissing: 0, skipped: false, complete: false });
 });
 
-test('dayStats: việc một lần đã tick chỉ cộng vào done, không tăng ngưỡng', () => {
-  // 2 việc hằng ngày (1 tick) + 1 việc một lần đã tick, minDone=3
-  // → ngưỡng vẫn là min(3, 2) = 2, done = 2 → hoàn thành nhờ việc một lần
+test('dayStats: việc một lần đã tick chỉ cộng vào done, không thế chỗ việc bắt buộc', () => {
   const state = makeState({
-    tasks: [daily('a', '2026-07-01'), daily('b', '2026-07-01'), once('o1', '2026-07-08')],
-    records: { '2026-07-08': { a: true, o1: true } },
-    minDone: 3,
+    tasks: [required('r', '2026-07-01'), once('o1', '2026-07-08')],
+    records: { '2026-07-08': { o1: true } },
   });
+  // done = 1 nhưng r chưa tick → chưa hoàn thành
   assert.deepEqual(dayStats(state, '2026-07-08'),
-    { total: 2, done: 2, dailyDone: 1, threshold: 2, requiredMissing: 0, skipped: false, complete: true });
-});
-
-test('dayStats: việc một lần CHƯA tick không làm ngày khó đạt hơn', () => {
-  const state = makeState({
-    tasks: [daily('a', '2026-07-01'), once('o1', '2026-07-08')],
-    records: { '2026-07-08': { a: true } },
-    minDone: 0, // phải đủ tất cả — nhưng "tất cả" chỉ tính việc hằng ngày
-  });
+    { total: 1, done: 1, dailyDone: 0, requiredTotal: 1, requiredMissing: 1, skipped: false, complete: false });
+  state.records['2026-07-08'].r = true;
   assert.equal(dayStats(state, '2026-07-08').complete, true);
 });
 
 test('dayStats: done có thể vượt total (5/3)', () => {
   const state = makeState({
-    tasks: [daily('a', '2026-07-01'), daily('b', '2026-07-01'), daily('c', '2026-07-01'),
+    tasks: [required('a', '2026-07-01'), daily('b', '2026-07-01'), daily('c', '2026-07-01'),
             once('o1', '2026-07-08'), once('o2', '2026-07-08')],
     records: { '2026-07-08': { a: true, b: true, c: true, o1: true, o2: true } },
-    minDone: 3,
   });
   assert.deepEqual(dayStats(state, '2026-07-08'),
-    { total: 3, done: 5, dailyDone: 3, threshold: 3, requiredMissing: 0, skipped: false, complete: true });
+    { total: 3, done: 5, dailyDone: 3, requiredTotal: 1, requiredMissing: 0, skipped: false, complete: true });
 });
 
 test('dayStats: ngày không có việc hằng ngày → không hoàn thành, kể cả có tick một lần', () => {
   const state = makeState({
     tasks: [once('o1', '2026-07-08')],
     records: { '2026-07-08': { o1: true } },
-    minDone: 3,
   });
   assert.deepEqual(dayStats(state, '2026-07-08'),
-    { total: 0, done: 1, dailyDone: 0, threshold: 0, requiredMissing: 0, skipped: false, complete: false });
+    { total: 0, done: 1, dailyDone: 0, requiredTotal: 0, requiredMissing: 0, skipped: false, complete: false });
 });
 
-test('dayStats: dailyDone phân biệt ngày "đạt ngưỡng" với ngày "trọn vẹn"', () => {
-  // 9 việc hằng ngày, ngưỡng 3, tick 3 → đạt ngưỡng nhưng CHƯA trọn vẹn
-  const tasks = 'abcdefghi'.split('').map(id => daily(id, '2026-07-01'));
+test('dayStats: dailyDone phân biệt ngày "hoàn thành" với ngày "trọn vẹn"', () => {
+  // 9 việc trong đó 1 bắt buộc — tick mỗi việc bắt buộc: hoàn thành nhưng CHƯA trọn vẹn
+  const tasks = [required('a', '2026-07-01'),
+                 ...'bcdefghi'.split('').map(id => daily(id, '2026-07-01'))];
   const state = makeState({
     tasks,
-    records: { '2026-07-08': { a: true, b: true, c: true } },
-    minDone: 3,
+    records: { '2026-07-08': { a: true } },
   });
   let s = dayStats(state, '2026-07-08');
   assert.equal(s.complete, true);
@@ -132,56 +120,15 @@ test('dayStats: dailyDone phân biệt ngày "đạt ngưỡng" với ngày "tr�
   assert.equal(s.dailyDone, s.total); // heatmap: mức 4
 });
 
-/* ===== dayStats: việc bắt buộc ===== */
-test('dayStats: đạt ngưỡng nhưng thiếu việc bắt buộc → chưa hoàn thành', () => {
-  // 3 việc, ngưỡng 2, tick 2 việc thường — việc bắt buộc 'r' chưa tick
+test('dayStats: việc bắt buộc chỉ được đòi vào những ngày nó có hiệu lực', () => {
+  // 'r2' bắt đầu 07/07 → trước đó ngày chỉ cần r1
   const state = makeState({
-    tasks: [required('r', '2026-07-01'), daily('a', '2026-07-01'), daily('b', '2026-07-01')],
-    records: { '2026-07-08': { a: true, b: true } },
-    minDone: 2,
+    tasks: [required('r1', '2026-07-01'), required('r2', '2026-07-07')],
+    records: { '2026-07-06': { r1: true }, '2026-07-08': { r1: true } },
   });
-  assert.deepEqual(dayStats(state, '2026-07-08'),
-    { total: 3, done: 2, dailyDone: 2, threshold: 2, requiredMissing: 1, skipped: false, complete: false });
-  // tick nốt việc bắt buộc → hoàn thành
-  state.records['2026-07-08'].r = true;
-  assert.deepEqual(dayStats(state, '2026-07-08'),
-    { total: 3, done: 3, dailyDone: 3, threshold: 2, requiredMissing: 0, skipped: false, complete: true });
-});
-
-test('dayStats: đủ việc bắt buộc nhưng chưa đạt ngưỡng → vẫn chưa hoàn thành', () => {
-  // ngưỡng 3, chỉ tick đúng 1 việc bắt buộc → thiếu số lượng
-  const state = makeState({
-    tasks: [required('r', '2026-07-01'), daily('a', '2026-07-01'),
-            daily('b', '2026-07-01'), daily('c', '2026-07-01')],
-    records: { '2026-07-08': { r: true } },
-    minDone: 3,
-  });
-  const s = dayStats(state, '2026-07-08');
-  assert.equal(s.requiredMissing, 0);
-  assert.equal(s.complete, false);
-});
-
-test('dayStats: việc bắt buộc chỉ tính vào những ngày nó có hiệu lực', () => {
-  // 'r' bắt đầu 07/07 và lưu trữ 07/10 → ngày 06/07 và 10/07 không đòi 'r'
-  const state = makeState({
-    tasks: [required('r', '2026-07-07', '2026-07-10'), daily('a', '2026-07-01')],
-    records: { '2026-07-06': { a: true }, '2026-07-10': { a: true } },
-    minDone: 1,
-  });
-  assert.equal(dayStats(state, '2026-07-06').complete, true);  // trước ngày bắt đầu của r
-  assert.equal(dayStats(state, '2026-07-10').complete, true);  // r đã lưu trữ
-  assert.equal(dayStats(state, '2026-07-08').requiredMissing, 1); // trong khoảng hiệu lực
-});
-
-test('dayStats: việc một lần đã tick không thế chỗ được việc bắt buộc', () => {
-  const state = makeState({
-    tasks: [required('r', '2026-07-01'), once('o1', '2026-07-08')],
-    records: { '2026-07-08': { o1: true } },
-    minDone: 1,
-  });
-  // done = 1 ≥ ngưỡng 1, nhưng r chưa tick → chưa hoàn thành
-  assert.deepEqual(dayStats(state, '2026-07-08'),
-    { total: 1, done: 1, dailyDone: 0, threshold: 1, requiredMissing: 1, skipped: false, complete: false });
+  assert.equal(dayStats(state, '2026-07-06').complete, true);  // r2 chưa bắt đầu
+  assert.equal(dayStats(state, '2026-07-08').requiredMissing, 1); // r2 đã có hiệu lực
+  assert.equal(dayStats(state, '2026-07-08').complete, false);
 });
 
 test('currentStreak: bỏ việc bắt buộc một ngày trong quá khứ là đứt chuỗi ở đó', () => {
@@ -189,10 +136,9 @@ test('currentStreak: bỏ việc bắt buộc một ngày trong quá khứ là �
     tasks: [required('r', '2026-07-01'), daily('a', '2026-07-01')],
     records: {
       '2026-07-06': { r: true, a: true },
-      '2026-07-07': { a: true },          // đủ ngưỡng nhưng thiếu r → đứt
+      '2026-07-07': { a: true },          // thiếu r → đứt
       '2026-07-08': { r: true, a: true },
     },
-    minDone: 1,
   });
   assert.equal(currentStreak(state, '2026-07-08'), 1);
 });
@@ -209,20 +155,18 @@ test('isSkipped: đọc map skips; lý do rỗng vẫn là nghỉ; state cũ kh�
 test('currentStreak: chuỗi xuyên qua ngày nghỉ, không cộng ngày nghỉ', () => {
   // 05✓ 06✓ [07 nghỉ] 08✓(hôm nay) → chuỗi 3, không phải 4
   const state = makeState({
-    tasks: [daily('a', '2026-07-01')],
+    tasks: [required('a', '2026-07-01')],
     records: { '2026-07-05': { a: true }, '2026-07-06': { a: true }, '2026-07-08': { a: true } },
     skips: { '2026-07-07': 'ốm' },
-    minDone: 1,
   });
   assert.equal(currentStreak(state, '2026-07-08'), 3);
 });
 
 test('currentStreak: hôm nay nghỉ → trung lập kể cả đã tick đủ, đếm từ hôm qua', () => {
   const state = makeState({
-    tasks: [daily('a', '2026-07-01')],
+    tasks: [required('a', '2026-07-01')],
     records: { '2026-07-06': { a: true }, '2026-07-07': { a: true }, '2026-07-08': { a: true } },
     skips: { '2026-07-08': 'đi chơi' },
-    minDone: 1,
   });
   assert.equal(currentStreak(state, '2026-07-08'), 2); // 06 + 07, hôm nay không cộng
 });
@@ -230,10 +174,9 @@ test('currentStreak: hôm nay nghỉ → trung lập kể cả đã tick đủ, 
 test('currentStreak: ngày nghỉ không cứu được ngày trượt thật', () => {
   // 06 trượt, 07 nghỉ, 08✓ → chuỗi vẫn đứt ở 06, còn 1
   const state = makeState({
-    tasks: [daily('a', '2026-07-01')],
+    tasks: [required('a', '2026-07-01')],
     records: { '2026-07-05': { a: true }, '2026-07-08': { a: true } },
     skips: { '2026-07-07': '' },
-    minDone: 1,
   });
   assert.equal(currentStreak(state, '2026-07-08'), 1);
 });
@@ -250,7 +193,6 @@ test('taskStreaks: ngày nghỉ trung lập với chuỗi từng việc (hiện 
       '2026-07-08': { a: true },
     },
     skips: { '2026-07-03': '', '2026-07-07': 'ốm' },
-    minDone: 1,
   });
   assert.deepEqual(taskStreaks(state, t, '2026-07-08'), { current: 3, longest: 3 });
 });
@@ -258,13 +200,12 @@ test('taskStreaks: ngày nghỉ trung lập với chuỗi từng việc (hiện 
 /* ===== currentStreak ===== */
 test('currentStreak: đếm lùi, hôm nay chưa đạt thì bắt đầu từ hôm qua', () => {
   const state = makeState({
-    tasks: [daily('a', '2026-07-01')],
+    tasks: [required('a', '2026-07-01')],
     records: {
       '2026-07-06': { a: true },
       '2026-07-07': { a: true },
       // 2026-07-08 (hôm nay) chưa tick
     },
-    minDone: 1,
   });
   assert.equal(currentStreak(state, '2026-07-08'), 2);
   state.records['2026-07-08'] = { a: true };
@@ -273,26 +214,32 @@ test('currentStreak: đếm lùi, hôm nay chưa đạt thì bắt đầu từ h
 
 test('currentStreak: đứt ở ngày không đạt', () => {
   const state = makeState({
-    tasks: [daily('a', '2026-07-01')],
+    tasks: [required('a', '2026-07-01')],
     records: {
       '2026-07-05': { a: true },
       // 2026-07-06 bỏ trống → đứt
       '2026-07-07': { a: true },
       '2026-07-08': { a: true },
     },
-    minDone: 1,
   });
   assert.equal(currentStreak(state, '2026-07-08'), 2);
 });
 
 test('currentStreak: dừng đếm trước ngày bắt đầu theo dõi', () => {
   const state = makeState({
-    tasks: [daily('a', '2026-07-07')],
+    tasks: [required('a', '2026-07-07')],
     records: { '2026-07-07': { a: true }, '2026-07-08': { a: true } },
-    minDone: 1,
   });
-  // trước 07/07 không có việc nào → total = 0 → dừng, không đếm vô hạn
+  // trước 07/07 không có việc bắt buộc nào → không hoàn thành → dừng, không đếm vô hạn
   assert.equal(currentStreak(state, '2026-07-08'), 2);
+});
+
+test('currentStreak: chưa đánh dấu việc bắt buộc nào → chuỗi luôn 0', () => {
+  const state = makeState({
+    tasks: [daily('a', '2026-07-01'), daily('b', '2026-07-01')],
+    records: { '2026-07-07': { a: true, b: true }, '2026-07-08': { a: true, b: true } },
+  });
+  assert.equal(currentStreak(state, '2026-07-08'), 0);
 });
 
 /* ===== taskStreaks ===== */
@@ -308,7 +255,6 @@ test('taskStreaks: chuỗi hiện tại và chuỗi dài nhất qua khoảng ngh
       '2026-07-07': { a: true },
       '2026-07-08': { a: true },
     },
-    minDone: 1,
   });
   assert.deepEqual(taskStreaks(state, t, '2026-07-08'), { current: 2, longest: 3 });
 });

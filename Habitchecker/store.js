@@ -47,7 +47,6 @@ export function normalize(raw) {
   const s = (raw && typeof raw === 'object') ? raw : {};
   if (!Array.isArray(s.tasks)) s.tasks = [];
   if (!s.records || typeof s.records !== 'object') s.records = {};
-  if (typeof s.minDone !== 'number') s.minDone = 3;
   s.achievements = toAchievementArray(s.achievements);
   if (!s.skips || typeof s.skips !== 'object') s.skips = {};
   if (!Array.isArray(s.groups)) s.groups = [];
@@ -60,7 +59,6 @@ export function normalize(raw) {
 function copyInto(state, src) {
   state.tasks = src.tasks;
   state.records = src.records;
-  state.minDone = src.minDone;
   state.achievements = src.achievements;
   state.skips = src.skips;
   state.groups = src.groups;
@@ -139,7 +137,6 @@ export function createStore(storage) {
       state.tasks = [...daily, ...rest];
       commit();
     },
-    setMinDone(n) { state.minDone = n; commit(); },
 
     /* ===== Nhóm việc ===== */
     addGroup(name) {

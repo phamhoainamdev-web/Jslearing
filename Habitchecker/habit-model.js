@@ -4,12 +4,13 @@
    bằng Node mà không cần trình duyệt.
 
    Định nghĩa "ngày hoàn thành" (xem CONTEXT.md):
-   - Mẫu số (total) và ngưỡng (threshold) chỉ tính VIỆC HẰNG NGÀY.
-   - Việc một lần đã tick "chỉ cộng, không trừ": cộng vào done,
-     không làm tăng ngưỡng. Vì vậy done có thể vượt total (vd 5/3).
-   - Việc hằng ngày có cờ `required` (bắt buộc): ngày chỉ hoàn thành khi
-     tick đủ MỌI việc bắt buộc có hiệu lực ngày đó, ngoài việc đạt ngưỡng.
-   - Ngày không có việc hằng ngày nào → không hoàn thành.
+   - Ngày hoàn thành = tick đủ MỌI việc bắt buộc (cờ `required`) có hiệu lực
+     ngày đó. Việc thường không ảnh hưởng — chỉ hiện trong tiến độ/thống kê.
+   - Ngày không có việc bắt buộc nào có hiệu lực → không hoàn thành
+     (chuỗi cần ít nhất một việc bắt buộc để có ý nghĩa).
+   - Mẫu số (total) chỉ tính VIỆC HẰNG NGÀY; việc một lần đã tick
+     "chỉ cộng, không trừ": cộng vào done nên done có thể vượt total (vd 5/3),
+     nhưng không thế chỗ được việc bắt buộc bỏ sót.
 
    Ngày nghỉ (skip): state.skips = { 'YYYY-MM-DD': 'lý do' } (lý do có thể rỗng).
    Với MỌI loại chuỗi, ngày nghỉ là ngày TRUNG LẬP: không làm đứt chuỗi,
@@ -81,12 +82,13 @@ export function dayStats(state, key) {
   const total = daily.length;
   const dailyDone = daily.filter(t => isDone(state, key, t.id)).length;
   const done = tasksFor(state, key, 'all').filter(t => isDone(state, key, t.id)).length;
-  // Việc bắt buộc còn thiếu: chỉ xét việc hằng ngày có hiệu lực ngày đó
-  const requiredMissing = daily.filter(t => t.required && !isDone(state, key, t.id)).length;
-  const threshold = total === 0 ? 0
-    : state.minDone > 0 ? Math.min(state.minDone, total) : total;
-  const complete = total > 0 && done >= threshold && requiredMissing === 0;
-  return { total, done, dailyDone, threshold, requiredMissing, skipped: isSkipped(state, key), complete };
+  // Việc bắt buộc: chỉ xét việc hằng ngày có hiệu lực ngày đó
+  const required = daily.filter(t => t.required);
+  const requiredTotal = required.length;
+  const requiredMissing = required.filter(t => !isDone(state, key, t.id)).length;
+  // Hoàn thành = có ít nhất một việc bắt buộc và tick đủ tất cả chúng
+  const complete = requiredTotal > 0 && requiredMissing === 0;
+  return { total, done, dailyDone, requiredTotal, requiredMissing, skipped: isSkipped(state, key), complete };
 }
 
 /* ===== Chuỗi ===== */
@@ -102,7 +104,7 @@ export function currentStreak(state, todayKey) {
     const key = dateKey(d);
     const s = dayStats(state, key);
     if (!s.skipped) {                       // ngày nghỉ: xuyên qua, không cộng
-      if (s.total === 0 || !s.complete) break;
+      if (!s.complete) break;
       streak++;
     }
     d.setDate(d.getDate() - 1);
