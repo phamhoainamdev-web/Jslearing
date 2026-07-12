@@ -433,6 +433,14 @@
         việc <span class="date-label">(0 = phải đủ tất cả)</span>
       </div>
 
+      <div class="section-title" style="margin-top:16px">Ngày nghỉ</div>
+      <div class="add-row">
+        <input id="skipDateInput" type="date" style="flex:0 1 160px; min-width:140px" value="">
+        <input id="skipReasonInput" type="text" placeholder="Lý do (tùy chọn)" maxlength="80">
+        <button class="btn" id="addSkipBtn">Thêm nghỉ</button>
+      </div>
+      <ul class="manage-list" id="skipsList"></ul>
+
       <div class="section-title" style="margin-top:16px">Dữ liệu 💾</div>
       <div class="add-row">
         <button class="btn ghost" id="exportBtn">⬇ Xuất file sao lưu</button>
@@ -507,6 +515,7 @@ import {
   dateKey, keyToDate, isOnce, onceDate, isActive, tasksFor, isDone,
   dayStats, currentStreak, taskStreaks, tasksForMonth,
 } from './habit-model.js';
+import { createStore } from './store.js';
 
 /* ================= Dữ liệu =================
    tasks: [{
@@ -520,24 +529,22 @@ import {
 */
 const STORE_KEY = 'habitchecker-v1';
 
-function load() {
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) { /* dữ liệu hỏng thì bắt đầu mới */ }
-  return { tasks: [], records: {} };
-}
-function save() {
-  state.updatedAt = Date.now(); // để so bản trên máy với bản online, bản mới hơn thắng
-  localStorage.setItem(STORE_KEY, JSON.stringify(state));
-  scheduleSyncPush();
+function storageAdapter() {
+  return {
+    get() {
+      try { return localStorage.getItem(STORE_KEY); } catch (e) { return null; }
+    },
+    set(json) { localStorage.setItem(STORE_KEY, json); },
+  };
 }
 
-const state = load();
-// Ngưỡng hoàn thành ngày: làm ít nhất n việc là ngày đó tính hoàn thành (0 = phải đủ tất cả)
-if (typeof state.minDone !== 'number') state.minDone = 3;
-// Thành tựu: mảng [{ id, date: 'YYYY-MM-DD', text }] — nhiều thành tựu mỗi ngày
-state.achievements = toAchievementArray(state.achievements);
+const store = createStore(storageAdapter());
+const state = store.state;
+store.onChange(source => {
+  if (source === 'local') scheduleSyncPush();
+  render();
+});
+function save() { store.update(() => {}); }
 
 /* ================= Đồng bộ online qua GitHub Gist =================
    Dữ liệu để trong một Gist secret trên tài khoản GitHub của người dùng.
@@ -607,14 +614,7 @@ async function gistPush() {
 /* Thay dữ liệu trên máy bằng bản online — ghi thẳng localStorage,
    không qua save() để giữ nguyên updatedAt của bản online */
 function applyRemoteState(data) {
-  state.tasks = Array.isArray(data.tasks) ? data.tasks : [];
-  state.records = (data.records && typeof data.records === 'object') ? data.records : {};
-  state.minDone = typeof data.minDone === 'number' ? data.minDone : 3;
-  state.achievements = toAchievementArray(data.achievements);
-  state.js = normalizeJsState(data.js);
-  state.updatedAt = data.updatedAt || Date.now();
-  localStorage.setItem(STORE_KEY, JSON.stringify(state));
-  render();
+  store.applyRemote(data);
 }
 
 function scheduleSyncPush() {
@@ -777,11 +777,7 @@ function formatDMY(key) {
    chuỗi, thống kê tháng) nằm trong habit-model.js — xem CONTEXT.md.
    Ở đây chỉ còn mutation, sẽ gom về store sau. */
 function toggleTask(key, taskId) {
-  if (!state.records[key]) state.records[key] = {};
-  if (state.records[key][taskId]) delete state.records[key][taskId];
-  else state.records[key][taskId] = true;
-  if (Object.keys(state.records[key]).length === 0) delete state.records[key];
-  save();
+  store.toggleTick(key, taskId);
 }
 
 /* ================= Thành tựu mỗi ngày ================= */
@@ -806,22 +802,13 @@ function achievementsForDay(key) {
   return state.achievements.filter(a => a.date === key);
 }
 function addAchievement(date, text) {
-  text = text.trim();
-  if (!text) return;
-  state.achievements.push({ id: newAchId(), date, text });
-  save();
+  store.addAchievement(date, text);
 }
 function deleteAchievement(id) {
-  state.achievements = state.achievements.filter(a => a.id !== id);
-  save();
+  store.deleteAchievement(id);
 }
 function editAchievement(id, text) {
-  const a = state.achievements.find(x => x.id === id);
-  if (!a) return;
-  text = text.trim();
-  if (text) a.text = text;
-  else state.achievements = state.achievements.filter(x => x.id !== id);
-  save();
+  store.editAchievement(id, text);
 }
 
 function escapeHtml(s) {
@@ -867,10 +854,18 @@ function renderToday() {
     const name = document.createElement('span');
     name.className = 'task-name';
     name.textContent = t.name;
-    const onToggle = () => { toggleTask(key, t.id); render(); };
+    const onToggle = () => { toggleTask(key, t.id); };
     cb.onclick = onToggle;
     name.onclick = onToggle;
     li.append(cb, name);
+    if (t.required) {
+      const req = document.createElement('span');
+      req.className = 'req-star';
+      req.textContent = '★';
+      req.title = 'Việc bắt buộc';
+      req.onclick = (e) => { e.stopPropagation(); store.toggleRequired(t.id); };
+      li.appendChild(req);
+    }
     if (isOnce(t)) {
       const tag = document.createElement('span');
       tag.className = 'once-tag';
@@ -932,9 +927,8 @@ function addAchievementFromInput() {
   const input = document.getElementById('newAchievementInput');
   const text = input.value.trim();
   if (!text) return;
-  addAchievement(todayKey(), text);
+  store.addAchievement(todayKey(), text);
   input.value = '';
-  render();
   input.focus();
 }
 document.getElementById('addAchievementBtn').onclick = addAchievementFromInput;
@@ -1395,17 +1389,9 @@ function addTask() {
   const name = input.value.trim();
   if (!name) return;
   const repeat = repeatSelect.value;
-  const task = {
-    id: 't' + Date.now() + Math.random().toString(36).slice(2, 6),
-    name,
-    repeat,
-    createdAt: todayKey(),
-    archivedAt: null,
-  };
-  if (repeat === 'once') task.date = newOnceDate;
-  if (groupSelect.value) task.groupId = groupSelect.value;
-  state.tasks.push(task);
-  save();
+  const data = { name, repeat, date: repeat === 'once' ? newOnceDate : undefined };
+  if (groupSelect.value) data.groupId = groupSelect.value;
+  store.addTask(data);
   input.value = '';
   groupSelect.value = '';
   render();
@@ -1420,9 +1406,7 @@ function addGroup() {
   const input = document.getElementById('newGroupInput');
   const name = input.value.trim();
   if (!name) return;
-  state.groups = state.groups || [];
-  state.groups.push({ id: 'g' + Date.now() + Math.random().toString(36).slice(2, 6), name });
-  save();
+  store.addGroup(name);
   input.value = '';
   render();
   input.focus();
@@ -1435,10 +1419,43 @@ document.getElementById('newGroupInput').addEventListener('keydown', e => {
 const minDoneInput = document.getElementById('minDoneInput');
 minDoneInput.onchange = () => {
   const v = parseInt(minDoneInput.value, 10);
-  state.minDone = Number.isFinite(v) && v >= 0 ? v : 0;
-  save();
-  render();
+  store.setMinDone(Number.isFinite(v) && v >= 0 ? v : 0);
 };
+
+document.getElementById('addSkipBtn').onclick = () => {
+  const dateInput = document.getElementById('skipDateInput');
+  const reasonInput = document.getElementById('skipReasonInput');
+  const key = dateInput.value;
+  if (!key) return alert('Chọn ngày nghỉ trước đã.');
+  store.setSkip(key, reasonInput.value.trim());
+  dateInput.value = '';
+  reasonInput.value = '';
+};
+
+function renderSkips() {
+  const list = document.getElementById('skipsList');
+  const keys = Object.keys(state.skips || {}).sort();
+  if (keys.length === 0) {
+    list.innerHTML = '<div class="empty">Chưa có ngày nghỉ nào. Thêm ngày nghỉ để không làm đứt chuỗi.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  for (const key of keys) {
+    const li = document.createElement('li');
+    const label = document.createElement('span');
+    label.className = 'name';
+    label.textContent = `${formatDMY(key)}${state.skips[key] ? ' — ' + state.skips[key] : ''}`;
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'btn ghost small danger';
+    removeBtn.textContent = 'Xóa nghỉ';
+    removeBtn.onclick = () => {
+      if (!confirm(`Xóa ngày nghỉ ${formatDMY(key)}?`)) return;
+      store.clearSkip(key);
+    };
+    li.append(label, removeBtn);
+    list.appendChild(li);
+  }
+}
 
 /* ===== Xuất / nhập dữ liệu (sao lưu & chuyển máy) ===== */
 document.getElementById('exportBtn').onclick = () => {
@@ -1466,13 +1483,7 @@ importFile.onchange = () => {
       return;
     }
     if (!confirm(`Nhập ${data.tasks.length} việc từ file?\nToàn bộ dữ liệu hiện tại trên máy này sẽ bị THAY THẾ.`)) return;
-    state.tasks = data.tasks;
-    state.records = data.records;
-    state.minDone = typeof data.minDone === 'number' ? data.minDone : 3;
-    state.achievements = toAchievementArray(data.achievements);
-    state.js = normalizeJsState(data.js);
-    save();
-    render();
+    store.importData(data);
     alert('Đã nhập dữ liệu thành công ✓');
   };
   reader.readAsText(file);
@@ -1512,11 +1523,7 @@ document.getElementById('activeList').addEventListener('dragover', (e) => {
 
 function applyDailyOrder() {
   const orderedIds = [...document.querySelectorAll('#activeList li')].map(el => el.dataset.id);
-  const daily = orderedIds.map(id => state.tasks.find(t => t.id === id)).filter(Boolean);
-  const rest = state.tasks.filter(t => isOnce(t) || t.archivedAt);
-  state.tasks = [...daily, ...rest];
-  save();
-  render();
+  store.reorderDaily(orderedIds);
 }
 
 function makeRenameBtn(t) {
@@ -1525,7 +1532,7 @@ function makeRenameBtn(t) {
   btn.textContent = 'Sửa tên';
   btn.onclick = () => {
     const newName = prompt('Tên mới cho việc này:', t.name);
-    if (newName && newName.trim()) { t.name = newName.trim(); save(); render(); }
+    if (newName && newName.trim()) { store.renameTask(t.id, newName.trim()); }
   };
   return btn;
 }
@@ -1536,15 +1543,7 @@ function makeDeleteBtn(t) {
   btn.textContent = 'Xóa';
   btn.onclick = () => {
     if (!confirm(`Xóa hẳn "${t.name}"? Toàn bộ lịch sử tick của việc này sẽ bị xóa và không khôi phục được.`)) return;
-    for (const key of Object.keys(state.records)) {
-      if (state.records[key][t.id]) {
-        delete state.records[key][t.id];
-        if (Object.keys(state.records[key]).length === 0) delete state.records[key];
-      }
-    }
-    state.tasks = state.tasks.filter(x => x.id !== t.id);
-    save();
-    render();
+    store.deleteTask(t.id);
   };
   return btn;
 }
@@ -1608,8 +1607,7 @@ function renderManage() {
       .concat((state.groups || []).map(x => `<option value="${x.id}" ${x.id === t.groupId ? 'selected' : ''}>${escapeHtml(x.name)}</option>`))
       .join('');
     groupSelect.onchange = () => {
-      t.groupId = groupSelect.value || null;
-      save(); render();
+      store.setTaskGroup(t.id, groupSelect.value || null);
     };
 
     const dateLabel = document.createElement('span');
@@ -1617,19 +1615,22 @@ function renderManage() {
     dateLabel.textContent = 'bắt đầu:';
     const startPick = makeDatePicker(t.createdAt,
       'Đổi ngày bắt đầu — lùi lại để tick được cho những ngày sớm hơn',
-      v => { t.createdAt = v; save(); render(); });
+      v => { store.setTaskStart(t.id, v); });
 
     const archiveBtn = document.createElement('button');
     archiveBtn.className = 'btn ghost small';
     archiveBtn.textContent = 'Lưu trữ';
     archiveBtn.onclick = () => {
       if (confirm(`Lưu trữ "${t.name}"? Việc này sẽ không xuất hiện từ hôm nay nữa, lịch sử cũ vẫn được giữ.`)) {
-        t.archivedAt = todayKey();
-        save(); render();
+        store.archiveTask(t.id);
       }
     };
 
-    li.append(handle, name, groupBadge, groupSelect, dateLabel, startPick, makeRenameBtn(t), archiveBtn, makeDeleteBtn(t));
+    const reqBtn = document.createElement('button');
+    reqBtn.className = 'btn ghost small';
+    reqBtn.textContent = t.required ? 'Bắt buộc' : 'Không bắt buộc';
+    reqBtn.onclick = () => store.toggleRequired(t.id);
+    li.append(handle, name, groupBadge, reqBtn, groupSelect, dateLabel, startPick, makeRenameBtn(t), archiveBtn, makeDeleteBtn(t));
     activeList.appendChild(li);
   }
 
@@ -1655,11 +1656,7 @@ function renderManage() {
 
     // Chuyển cả dấu tick (nếu có) sang ngày mới
     const dayPick = makeDatePicker(dk, 'Đổi ngày của việc này', v => {
-      const wasDone = isDone(state, dk, t.id);
-      if (wasDone) toggleTask(dk, t.id);
-      t.date = v;
-      if (wasDone) toggleTask(t.date, t.id);
-      save(); render();
+      store.moveOnceTask(t.id, v);
     });
 
     li.append(name, status, dayPick, makeRenameBtn(t), makeDeleteBtn(t));
@@ -1668,6 +1665,7 @@ function renderManage() {
 
   const groupsList = document.getElementById('groupsList');
   groupsList.innerHTML = '';
+  renderSkips();
   for (const g of state.groups || []) {
     const li = document.createElement('li');
     const name = document.createElement('span');
@@ -1678,9 +1676,7 @@ function renderManage() {
     delBtn.textContent = 'Xóa nhóm';
     delBtn.onclick = () => {
       if (!confirm(`Xóa nhóm "${g.name}"? Các việc đang ở nhóm này sẽ trở về “không nhóm”.`)) return;
-      state.groups = (state.groups || []).filter(x => x.id !== g.id);
-      for (const t of state.tasks) if (t.groupId === g.id) t.groupId = null;
-      save(); render();
+      store.deleteGroup(g.id);
     };
     li.append(name, delBtn);
     groupsList.appendChild(li);
@@ -1700,7 +1696,7 @@ function renderManage() {
     const restoreBtn = document.createElement('button');
     restoreBtn.className = 'btn ghost small';
     restoreBtn.textContent = 'Khôi phục';
-    restoreBtn.onclick = () => { t.archivedAt = null; save(); render(); };
+    restoreBtn.onclick = () => { store.restoreTask(t.id); };
 
     li.append(name, tag, restoreBtn, makeDeleteBtn(t));
     archivedList.appendChild(li);
