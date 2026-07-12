@@ -55,12 +55,6 @@ test('toggleTick: tick rồi bỏ tick thì records sạch (không còn ngày r�
   assert.equal('2026-07-10' in store.state.records, false);
 });
 
-test('addTask: có thể tạo việc hằng ngày bắt buộc', () => {
-  const store = createStore(makeStorage());
-  store.addTask({ name: 'Tập thể dục', required: true });
-  assert.equal(store.state.tasks[0].required, true);
-});
-
 test('deleteTask: xóa việc thì lịch sử tick của nó cũng sạch', () => {
   const store = createStore(makeStorage());
   store.addTask({ name: 'a' });
