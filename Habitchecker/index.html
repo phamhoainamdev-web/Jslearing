@@ -263,10 +263,16 @@
     font-size: 17px; line-height: 1; color: var(--faint); cursor: pointer;
   }
   .req-toggle:hover, .req-toggle.on { color: var(--amber); }
-  /* Dòng 2 của mỗi hàng việc: gom mọi nút điều khiển, khỏi vỡ dòng lộn xộn */
+  /* Cụm nút điều khiển của mỗi hàng việc — nằm cùng dòng với tên khi đủ chỗ */
   .manage-list .task-controls {
-    flex-basis: 100%; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-    padding-left: 24px;
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  }
+  /* Màn hình rộng: đẩy sao ra sau cụm điều khiển (mép phải); `order` chỉ đổi vị trí hiển thị, DOM giữ nguyên */
+  .manage-list .req-toggle { order: 1; }
+  /* Màn hình hẹp (điện thoại): cụm điều khiển xuống dòng riêng như cũ, sao về cạnh tên */
+  @media (max-width: 640px) {
+    .manage-list .task-controls { flex-basis: 100%; padding-left: 24px; }
+    .manage-list .req-toggle { order: 0; }
   }
   .date-mini {
     border: 1px solid var(--border); border-radius: 8px; padding: 4px 6px;
@@ -347,6 +353,23 @@
 </head>
 <body>
 <div class="container">
+  <!-- Lưới an toàn: script chính chết ngay lúc nạp (thường do vừa deploy xong,
+       trình duyệt lấy phải file nửa cũ nửa mới) thì hiện banner này thay vì trang chết im lặng -->
+  <div id="bootError" class="hidden" style="background: var(--red-soft); color: var(--red);
+       border: 1px solid var(--red-border); border-radius: 12px; padding: 12px 16px;
+       margin-bottom: 14px; font-size: 14px; line-height: 1.5;">
+    ⚠ App chưa nạp được — có thể bản mới vừa deploy còn đang cập nhật.
+    <button onclick="location.reload()" style="margin-left: 8px; padding: 4px 12px; border-radius: 8px;
+        border: 1px solid var(--red-border); background: transparent; color: var(--red);
+        font-weight: 600; cursor: pointer">Tải lại</button>
+  </div>
+  <script>
+    // Script thường (không phải module) nên vẫn chạy được khi module bên dưới chết.
+    // __appReady chỉ được bật ở dòng cuối của script module.
+    window.addEventListener('error', () => {
+      if (!window.__appReady) document.getElementById('bootError').classList.remove('hidden');
+    });
+  </script>
   <header>
     <h1>✅ Habit Checker</h1>
     <span class="date"><span id="syncDot" class="hidden" style="margin-right:6px; cursor:pointer"></span><span id="todayLabel"></span></span>
@@ -1628,7 +1651,7 @@ function renderManage() {
     reqBtn.title = t.required ? 'Việc bắt buộc — bấm để bỏ' : 'Đánh dấu là việc bắt buộc';
     reqBtn.onclick = () => store.toggleRequired(t.id);
 
-    /* Dòng 1: tay nắm + tên + sao; dòng 2: các nút điều khiển */
+    /* Tay nắm + tên + sao + cụm nút điều khiển (CSS `order` lo vị trí sao theo cỡ màn hình) */
     const controls = document.createElement('div');
     controls.className = 'task-controls';
     controls.append(groupSelect, dateLabel, startPick, makeRenameBtn(t), archiveBtn, makeDeleteBtn(t));
@@ -2195,6 +2218,9 @@ document.addEventListener('visibilitychange', () => {
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.register('sw.js').catch(() => { /* không chặn app */ });
 }
+
+// App nạp trọn vẹn — tắt lưới an toàn bootError (xem đầu <body>)
+window.__appReady = true;
 </script>
 </body>
 </html>
