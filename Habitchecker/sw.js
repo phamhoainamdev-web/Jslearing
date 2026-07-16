@@ -5,7 +5,7 @@
 'use strict';
 
 const CACHE = 'habitchecker-shell-v1';
-const ASSETS = ['./', './index.html', './habit-model.js', './store.js', './manifest.json', './icon-512.png', './icon-maskable-512.png', './icon-180.png'];
+const ASSETS = ['./', './index.html', './habit-model.js', './reward-model.js', './store.js', './manifest.json', './icon-512.png', './icon-maskable-512.png', './icon-180.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
