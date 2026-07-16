@@ -35,6 +35,27 @@ function toAchievementArray(value) {
   return [];
 }
 
+/* Kinh tế vé: chỉ log lượt quay (spins) và pool phần thưởng là dữ liệu
+   phải LƯU — số vé/mảnh hiện có luôn suy ra từ records/skips (reward-model).
+   Spin chụp lại rewardName + kind tại thời điểm quay, vì pool sửa/xóa được. */
+function normalizeEconomy(v) {
+  const o = (v && typeof v === 'object') ? v : {};
+  const spins = Array.isArray(o.spins) ? o.spins.filter(s => s && s.date).map(s => ({
+    id: s.id || newId('s'),
+    date: s.date,
+    rewardId: s.rewardId || null,
+    rewardName: String(s.rewardName || ''),
+    kind: s.kind === 'jackpot' ? 'jackpot' : 'normal',
+  })) : [];
+  const pool = Array.isArray(o.pool) ? o.pool.filter(p => p && p.name).map(p => ({
+    id: p.id || newId('r'),
+    name: String(p.name),
+    weight: Number(p.weight) > 0 ? Number(p.weight) : 1,
+    tier: p.tier === 'jackpot' ? 'jackpot' : 'normal',
+  })) : [];
+  return { spins, pool };
+}
+
 function normalizeJsState(v) {
   const o = (v && typeof v === 'object') ? v : {};
   if (!o.weekPlans || typeof o.weekPlans !== 'object') o.weekPlans = {};
@@ -50,6 +71,7 @@ export function normalize(raw) {
   s.achievements = toAchievementArray(s.achievements);
   if (!s.skips || typeof s.skips !== 'object') s.skips = {};
   if (!Array.isArray(s.groups)) s.groups = [];
+  s.economy = normalizeEconomy(s.economy);
   s.js = normalizeJsState(s.js);
   return s;
 }
@@ -62,6 +84,7 @@ function copyInto(state, src) {
   state.achievements = src.achievements;
   state.skips = src.skips;
   state.groups = src.groups;
+  state.economy = src.economy;
   state.js = src.js;
 }
 
@@ -162,6 +185,42 @@ export function createStore(storage) {
       const ordered = orderedIds.map(id => state.groups.find(g => g.id === id)).filter(Boolean);
       const rest = state.groups.filter(g => !orderedIds.includes(g.id));
       state.groups = [...ordered, ...rest];
+      commit();
+    },
+
+    /* ===== Kinh tế vé (state.economy) =====
+       CHỈ có pool phần thưởng và log lượt quay — tuyệt đối không có
+       method cộng vé/mảnh tay: số dư luôn suy từ records (reward-model). */
+    addPoolItem({ name, weight = 10, tier = 'normal' } = {}) {
+      name = (name || '').trim();
+      if (!name) return;
+      state.economy.pool.push({
+        id: newId('r'),
+        name,
+        weight: Number(weight) > 0 ? Number(weight) : 1,
+        tier: tier === 'jackpot' ? 'jackpot' : 'normal',
+      });
+      commit();
+    },
+    updatePoolItem(id, fields = {}) {
+      const p = state.economy.pool.find(x => x.id === id);
+      if (!p) return;
+      if (fields.name !== undefined) { const n = String(fields.name).trim(); if (n) p.name = n; }
+      if (fields.weight !== undefined) { const w = Number(fields.weight); if (w > 0) p.weight = w; }
+      if (fields.tier !== undefined) p.tier = fields.tier === 'jackpot' ? 'jackpot' : 'normal';
+      commit();
+    },
+    deletePoolItem(id) {
+      state.economy.pool = state.economy.pool.filter(p => p.id !== id);
+      commit();
+    },
+    /* Ghi sự kiện quay — chụp rewardName + kind tại thời điểm quay để
+       lịch sử tự đứng vững khi món trong pool bị sửa/xóa về sau */
+    recordSpin({ date, rewardId, rewardName, kind = 'normal' } = {}) {
+      state.economy.spins.push({
+        id: newId('s'), date, rewardId, rewardName: String(rewardName || ''),
+        kind: kind === 'jackpot' ? 'jackpot' : 'normal',
+      });
       commit();
     },
 

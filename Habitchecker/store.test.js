@@ -174,3 +174,55 @@ test('importData: thay toàn bộ và tính là sửa trên máy (source local)'
   assert.deepEqual(events, ['local']);
   assert.equal(store.state.achievements[0].text, 'nhập từ file');
 });
+
+/* ===== Kinh tế vé (economy) ===== */
+test('normalize: dữ liệu cũ chưa có economy → khởi tạo rỗng, phần tử hỏng bị lọc', () => {
+  assert.deepEqual(normalize(null).economy, { spins: [], pool: [] });
+  const s = normalize({ economy: {
+    spins: [{ date: '2026-07-01', rewardName: 'Trà sữa' }, { rewardName: 'thiếu ngày' }, null],
+    pool: [{ name: 'Cà phê', weight: '-2', tier: 'lạ' }, { weight: 5 }, 'rác'],
+  } });
+  assert.equal(s.economy.spins.length, 1); // spin thiếu date bị loại
+  assert.equal(s.economy.spins[0].kind, 'normal');
+  assert.ok(s.economy.spins[0].id);
+  assert.equal(s.economy.pool.length, 1); // item thiếu tên bị loại
+  assert.equal(s.economy.pool[0].weight, 1);      // weight hỏng về 1
+  assert.equal(s.economy.pool[0].tier, 'normal'); // tier lạ về normal
+});
+
+test('pool: thêm / sửa / xóa món phần thưởng', () => {
+  const store = createStore(makeStorage());
+  store.addPoolItem({ name: '  Trà sữa Phúc Long  ', weight: 10 });
+  store.addPoolItem({ name: 'Buffet ABC', weight: 1, tier: 'jackpot' });
+  assert.equal(store.state.economy.pool.length, 2);
+  assert.equal(store.state.economy.pool[0].name, 'Trà sữa Phúc Long');
+
+  const id = store.state.economy.pool[0].id;
+  store.updatePoolItem(id, { weight: 3, tier: 'jackpot' });
+  assert.equal(store.state.economy.pool[0].weight, 3);
+  assert.equal(store.state.economy.pool[0].tier, 'jackpot');
+  store.updatePoolItem(id, { name: '   ' }); // tên rỗng: giữ tên cũ
+  assert.equal(store.state.economy.pool[0].name, 'Trà sữa Phúc Long');
+
+  store.deletePoolItem(id);
+  assert.equal(store.state.economy.pool.length, 1);
+});
+
+test('recordSpin: ghi log lượt quay kèm tên món chụp tại thời điểm quay', () => {
+  const store = createStore(makeStorage());
+  store.recordSpin({ date: '2026-07-16', rewardId: 'r1', rewardName: 'Trà sữa', kind: 'jackpot' });
+  const sp = store.state.economy.spins[0];
+  assert.equal(sp.rewardName, 'Trà sữa');
+  assert.equal(sp.kind, 'jackpot');
+  assert.ok(sp.id);
+});
+
+test('importData/applyRemote: economy đi theo dữ liệu, không bị rơi mất', () => {
+  const store = createStore(makeStorage());
+  store.importData({ tasks: [], records: {}, economy: {
+    spins: [{ id: 's1', date: '2026-07-01', rewardId: null, rewardName: 'Cà phê', kind: 'normal' }],
+    pool: [{ id: 'r1', name: 'Cà phê', weight: 10, tier: 'normal' }],
+  } });
+  assert.equal(store.state.economy.spins.length, 1);
+  assert.equal(store.state.economy.pool[0].name, 'Cà phê');
+});
