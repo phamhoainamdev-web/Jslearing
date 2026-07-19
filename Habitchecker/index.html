@@ -473,7 +473,15 @@
   <!-- ===== TAB CÔNG VIỆC ===== -->
   <section id="view-manage" class="hidden">
     <div class="card">
+      <div class="section-title" style="margin-top:0">Ngày nghỉ</div>
       <div class="add-row">
+        <input id="skipDateInput" type="date" style="flex:0 1 160px; min-width:140px" value="">
+        <input id="skipReasonInput" type="text" placeholder="Lý do (tùy chọn)" maxlength="80">
+        <button class="btn" id="addSkipBtn">Thêm nghỉ</button>
+      </div>
+      <ul class="manage-list" id="skipsList"></ul>
+
+      <div class="add-row" style="margin-top:16px">
         <input id="newTaskInput" type="text" placeholder="Tên việc mới, vd: Tập thể dục" maxlength="80">
         <select id="newTaskRepeat">
           <option value="daily">Hằng ngày</option>
@@ -498,21 +506,6 @@
         <ul class="manage-list" id="archivedList"></ul>
       </div>
 
-      <div class="section-title" style="margin-top:16px">Nhóm việc</div>
-      <div class="add-row">
-        <input id="newGroupInput" type="text" placeholder="Tên nhóm, vd: Sức khỏe" maxlength="40">
-        <button class="btn" id="addGroupBtn">Thêm nhóm</button>
-      </div>
-      <ul class="manage-list" id="groupsList"></ul>
-
-      <div class="section-title" style="margin-top:16px">Ngày nghỉ</div>
-      <div class="add-row">
-        <input id="skipDateInput" type="date" style="flex:0 1 160px; min-width:140px" value="">
-        <input id="skipReasonInput" type="text" placeholder="Lý do (tùy chọn)" maxlength="80">
-        <button class="btn" id="addSkipBtn">Thêm nghỉ</button>
-      </div>
-      <ul class="manage-list" id="skipsList"></ul>
-
       <div class="section-title" style="margin-top:16px">Phần thưởng gacha 🎁</div>
       <div class="add-row">
         <input id="newRewardInput" type="text" placeholder="Món + quán cụ thể, vd: Trà sữa ô long — Phúc Long" maxlength="80">
@@ -525,6 +518,13 @@
         <button class="btn" id="addRewardBtn">Thêm món</button>
       </div>
       <ul class="manage-list" id="rewardPoolList"></ul>
+
+      <div class="section-title" style="margin-top:16px">Nhóm việc</div>
+      <div class="add-row">
+        <input id="newGroupInput" type="text" placeholder="Tên nhóm, vd: Sức khỏe" maxlength="40">
+        <button class="btn" id="addGroupBtn">Thêm nhóm</button>
+      </div>
+      <ul class="manage-list" id="groupsList"></ul>
 
       <div class="section-title" style="margin-top:16px">Dữ liệu 💾</div>
       <div class="add-row">
@@ -1878,7 +1878,9 @@ function renderRewardPool() {
     return;
   }
   list.innerHTML = '';
-  for (const p of state.economy.pool) {
+  // Hiển thị weight thấp → cao (món hiếm lên đầu); chỉ sắp bản sao, không đổi thứ tự trong state
+  const sorted = [...state.economy.pool].sort((a, b) => Number(a.weight) - Number(b.weight));
+  for (const p of sorted) {
     const li = document.createElement('li');
 
     const name = document.createElement('span');
