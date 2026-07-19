@@ -364,8 +364,6 @@
     padding: 8px 12px; font-size: 14px; display: flex; align-items: center; gap: 6px;
     transition: background .12s, border-color .12s, transform .12s; }
   .pool-item .w { margin-left: auto; font-size: 12px; color: var(--muted); flex-shrink: 0; }
-  .pool-item.hot { background: var(--primary-soft); border-color: var(--primary); transform: scale(1.04); }
-  .pool-item.won { background: var(--green-soft); border-color: var(--green); transform: scale(1.06); }
   .spin-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 18px; }
   .spin-history { list-style: none; padding: 0; margin: 0; }
   .spin-history li { display: flex; gap: 10px; align-items: baseline; padding: 7px 0;
@@ -373,6 +371,41 @@
   .spin-history li:last-child { border-bottom: none; }
   .weight-input { width: 64px; padding: 6px 8px; border: 1px solid var(--border);
     border-radius: 8px; background: var(--field); color: var(--text); font-size: 13px; }
+
+  /* Màn quay gacha kiểu HSR: overlay trời đêm + sao băng bay ngang — MÀU vệt
+     báo độ hiếm (xanh = thường, VÀNG = jackpot; vệt xanh chuyển vàng giữa chừng
+     là màn "fake-out" học từ HSR), xong mới hiện card reveal món trúng */
+  .gacha-overlay { position: fixed; inset: 0; z-index: 105; background: #0b0e1a;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+    cursor: pointer; animation: gacha-fade .3s ease-out; transition: background .5s; }
+  .gacha-overlay.gold { background: #201409; }
+  @keyframes gacha-fade { from { opacity: 0; } }
+  .gacha-star { position: absolute; width: 3px; height: 3px; border-radius: 50%;
+    background: #fff; animation: gacha-twinkle 1.8s ease-in-out infinite; }
+  @keyframes gacha-twinkle { 0%, 100% { opacity: .55; } 50% { opacity: .08; } }
+  .gacha-comet { position: absolute; left: -30vw; width: 26vw; height: 4px; border-radius: 999px;
+    background: linear-gradient(90deg, transparent, var(--c)); box-shadow: 0 0 14px 2px var(--c);
+    animation: gacha-comet-fly linear forwards; }
+  .gacha-comet::after { content: ''; position: absolute; right: -5px; top: -4px;
+    width: 12px; height: 12px; border-radius: 50%; background: #fff;
+    box-shadow: 0 0 18px 6px var(--c); }
+  @keyframes gacha-comet-fly { to { transform: translateX(160vw); } }
+  .gacha-flash { position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(circle, rgba(255,209,102,.9), transparent 70%);
+    animation: gacha-flash-fade .55s ease-out forwards; }
+  @keyframes gacha-flash-fade { to { opacity: 0; } }
+  .gacha-card { background: var(--card); color: var(--text); border: 2px solid var(--primary);
+    border-radius: 16px; padding: 26px 30px; text-align: center; max-width: 86vw;
+    box-shadow: 0 0 34px rgba(110,168,255,.35); animation: gacha-pop .4s cubic-bezier(.2,1.6,.4,1); }
+  .gacha-card.jackpot { border-color: var(--amber); box-shadow: 0 0 44px rgba(240,163,48,.55); }
+  @keyframes gacha-pop { from { transform: scale(.5); opacity: 0; } }
+  .gacha-kind { font-size: 13px; font-weight: 700; letter-spacing: 2px;
+    color: var(--muted); margin-bottom: 10px; }
+  .gacha-card.jackpot .gacha-kind { color: var(--amber); }
+  .gacha-name { font-size: 20px; font-weight: 800; line-height: 1.4; }
+  .gacha-note { font-size: 13.5px; color: var(--muted); margin-top: 10px; }
+  .gacha-hint { position: absolute; bottom: 26px; left: 0; right: 0; text-align: center;
+    font-size: 13px; color: rgba(255,255,255,.55); }
 
   .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
     background: var(--card); color: var(--text); border: 1px solid var(--border);
@@ -387,6 +420,7 @@
   @media (prefers-reduced-motion: reduce) {
     .toast { animation: none; }
     .pool-item { transition: none; }
+    .gacha-overlay, .gacha-card, .gacha-star { animation: none; }
   }
 
   .hidden { display: none !important; }
@@ -649,22 +683,25 @@ function showToast(msg) {
   setTimeout(() => el.remove(), 4000);
 }
 
-function throwConfetti() {
+/* big: bản xịn cho trúng jackpot — nhiều hạt hơn, tông vàng kim, rơi lâu hơn */
+function throwConfetti({ big = false } = {}) {
   if (reducedMotion) return;
-  const colors = ['#4f6ef7', '#2eb872', '#f0a330', '#e25555', '#9b6ef7'];
+  const colors = big
+    ? ['#ffd166', '#f0a330', '#ffe9b3', '#fff', '#4f6ef7']
+    : ['#4f6ef7', '#2eb872', '#f0a330', '#e25555', '#9b6ef7'];
   const box = document.createElement('div');
   box.className = 'confetti';
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < (big ? 90 : 40); i++) {
     const p = document.createElement('i');
     p.style.left = Math.random() * 100 + 'vw';
     p.style.background = colors[i % colors.length];
-    p.style.animationDuration = (1.4 + Math.random() * 1.2) + 's';
-    p.style.animationDelay = (Math.random() * 0.3) + 's';
+    p.style.animationDuration = (1.4 + Math.random() * (big ? 2 : 1.2)) + 's';
+    p.style.animationDelay = (Math.random() * (big ? 0.8 : 0.3)) + 's';
     p.style.transform = `rotate(${Math.random() * 360}deg)`;
     box.appendChild(p);
   }
   document.body.appendChild(box);
-  setTimeout(() => box.remove(), 3300);
+  setTimeout(() => box.remove(), big ? 4500 : 3300);
 }
 
 /* ================= Âm thanh 🔊 =================
@@ -713,10 +750,17 @@ const SOUNDS = {
     { f: 523, d: 0.1 }, { f: 659, t: 0.09, d: 0.1 },
     { f: 784, t: 0.18, d: 0.12 }, { f: 1047, t: 0.27, d: 0.25, vol: 0.18 },
   ]),
-  /* gacha: tiếng đèn chạy + tiếng trúng thưởng */
-  spinTick: () => playNotes([{ f: 660, d: 0.03, vol: 0.05, type: 'square' }]),
+  /* gacha kiểu HSR: riser vút lên theo sao băng, "keng" lúc vệt chuyển vàng,
+     tiếng trúng thường, và fanfare dài hơn cho trúng jackpot */
+  riser: () => playNotes([{ f: 196, f2: 1568, d: 1.9, vol: 0.06, type: 'triangle' }]),
+  sting: () => playNotes([{ f: 1047, d: 0.1, vol: 0.12 }, { f: 1568, t: 0.08, d: 0.3, vol: 0.16 }]),
   win: () => playNotes([
     { f: 784, d: 0.1 }, { f: 988, t: 0.1, d: 0.1 }, { f: 1319, t: 0.2, d: 0.35, vol: 0.2 },
+  ]),
+  jackpot: () => playNotes([
+    { f: 523, d: 0.09 }, { f: 659, t: 0.09, d: 0.09 }, { f: 784, t: 0.18, d: 0.09 },
+    { f: 1047, t: 0.27, d: 0.12 }, { f: 784, t: 0.42, d: 0.09 },
+    { f: 1319, t: 0.51, d: 0.6, vol: 0.22 },
   ]),
 };
 
@@ -1558,7 +1602,7 @@ function renderStats(body) {
 
 /* ===== Thưởng 🎰 (gacha) =====
    Số dư suy từ records (reward-model) — màn này chỉ hiển thị và TIÊU.
-   Danh sách món vừa là pool vừa là "bảng đèn" cho animation quay. */
+   Bấm quay mở màn trình diễn kiểu HSR (doSpin) phủ lên toàn trang. */
 let spinning = false; // đang quay thì khóa nút, không cho quay chồng
 
 function renderReward(body) {
@@ -1583,12 +1627,9 @@ function renderReward(body) {
   } else {
     const list = document.createElement('ul');
     list.className = 'pool-list';
-    list.id = 'rewardPool';
     for (const p of pool) {
       const li = document.createElement('li');
       li.className = 'pool-item';
-      li.dataset.id = p.id;
-      li.dataset.tier = p.tier;
       li.innerHTML = `<span>${p.tier === 'jackpot' ? '⭐ ' : ''}${escapeHtml(p.name)}</span>` +
         `<span class="w" title="Trọng số — càng lớn càng dễ trúng">w${p.weight}</span>`;
       list.appendChild(li);
@@ -1642,9 +1683,11 @@ function renderReward(body) {
   }
 }
 
-/* Quay: chọn kết quả TRƯỚC bằng spinPick, rồi chạy đèn chậm dần cho kịch tính
-   và dừng đúng món đã chọn. Chỉ khi dừng hẳn mới ghi log (recordSpin) —
-   onChange sẽ render lại số dư + lịch sử. */
+/* Quay kiểu gacha HSR: chọn kết quả TRƯỚC bằng spinPick, phần sau chỉ là trình
+   diễn — overlay trời đêm, sao băng bay ngang (vệt 1 luôn XANH chưa lộ gì;
+   vệt 2 lộ độ hiếm: chuyển VÀNG nếu trúng món jackpot — màn "fake-out"),
+   rồi card reveal. Chỉ lúc reveal mới ghi log (recordSpin) — onChange render
+   lại số dư + lịch sử phía sau overlay; bấm màn hình để đóng. */
 function doSpin(kind) {
   if (spinning) return;
   const key = todayKey();
@@ -1652,39 +1695,63 @@ function doSpin(kind) {
   if (kind === 'jackpot' ? eco.jackpotSpins < 1 : eco.tickets < 1) return;
   const chosen = spinPick(state.economy.pool, kind, Math.random);
   if (!chosen) return;
+  // Ăn mừng theo MÓN trúng chứ không theo loại lượt: quay thường vẫn có thể
+  // trúng món jackpot (weight nhỏ) — khoảnh khắc hiếm nhất, mừng to nhất
+  const gold = chosen.tier === 'jackpot';
 
   spinning = true;
   for (const b of document.querySelectorAll('.spin-row .btn')) b.disabled = true;
-  const finish = () => {
-    spinning = false;
-    store.recordSpin({ date: key, rewardId: chosen.id, rewardName: chosen.name, kind });
-    showToast(`🎉 Trúng: ${chosen.name}! Bạn đã ĐẠT — đi ăn thôi.`);
-    throwConfetti();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'gacha-overlay';
+  for (let i = 0; i < 24; i++) { // nền trời sao lấp lánh
+    const s = document.createElement('i');
+    s.className = 'gacha-star';
+    s.style.left = Math.random() * 100 + 'vw';
+    s.style.top = Math.random() * 100 + 'vh';
+    s.style.animationDelay = (Math.random() * 1.8) + 's';
+    overlay.appendChild(s);
+  }
+  document.body.appendChild(overlay);
+
+  const comet = (color, top, dur) => {
+    const c = document.createElement('div');
+    c.className = 'gacha-comet';
+    c.style.setProperty('--c', color);
+    c.style.top = top;
+    c.style.animationDuration = dur + 'ms';
+    overlay.appendChild(c);
+    setTimeout(() => c.remove(), dur + 100);
   };
 
-  const items = [...document.querySelectorAll('#rewardPool .pool-item')]
-    .filter(el => (kind === 'jackpot' ? el.dataset.tier === 'jackpot' : true));
-  const targetIdx = items.findIndex(el => el.dataset.id === chosen.id);
-  if (reducedMotion || targetIdx < 0) { SOUNDS.win(); finish(); return; }
+  const reveal = () => {
+    spinning = false;
+    store.recordSpin({ date: key, rewardId: chosen.id, rewardName: chosen.name, kind });
+    (gold ? SOUNDS.jackpot : SOUNDS.win)();
+    throwConfetti({ big: gold });
+    const card = document.createElement('div');
+    card.className = 'gacha-card' + (gold ? ' jackpot' : '');
+    card.innerHTML =
+      `<div class="gacha-kind">${gold ? '⭐ JACKPOT ⭐' : '🎁 TRÚNG THƯỞNG'}</div>` +
+      `<div class="gacha-name">${escapeHtml(chosen.name)}</div>` +
+      '<div class="gacha-note">Bạn đã ĐẠT — đi ăn thôi 😋</div>';
+    overlay.appendChild(card);
+    overlay.insertAdjacentHTML('beforeend', '<div class="gacha-hint">Bấm để đóng</div>');
+    overlay.addEventListener('click', () => overlay.remove(), { once: true });
+  };
 
-  const steps = items.length * 2 + targetIdx + 1; // ~2 vòng đèn rồi mới về đích
-  let i = 0, delay = 70;
-  (function step() {
-    items.forEach(el => el.classList.remove('hot'));
-    const el = items[i % items.length];
-    el.classList.add('hot');
-    SOUNDS.spinTick(); // tiếng đèn chạy — thưa dần theo delay, tăng kịch tính
-    i++;
-    if (i >= steps) {
-      el.classList.remove('hot');
-      el.classList.add('won');
-      SOUNDS.win();
-      setTimeout(finish, 700);
-      return;
-    }
-    delay = (steps - i <= 5) ? delay * 1.45 : delay * 1.04; // các bước cuối chậm hẳn lại
-    setTimeout(step, delay);
-  })();
+  if (reducedMotion) { reveal(); return; }
+  SOUNDS.riser();
+  comet('#6ea8ff', '36%', 1000);
+  setTimeout(() => {
+    if (gold) {
+      overlay.classList.add('gold');
+      overlay.insertAdjacentHTML('beforeend', '<div class="gacha-flash"></div>');
+      SOUNDS.sting();
+      comet('#ffd166', '55%', 900);
+    } else comet('#8bb4ff', '58%', 900);
+  }, 950);
+  setTimeout(reveal, 2050);
 }
 
 /* ===== Bảng nhật ký thành tựu (toàn bộ thời gian, ngày mới ở trên) ===== */
